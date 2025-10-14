@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в Админку - Рука Гроха</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-login {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(ellipse at center, #0a0805 0%, #000 70%);
+        }
+        
+        .login-box {
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #B8860B;
+            padding: 40px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 
+                0 0 60px rgba(255, 215, 0, 0.4),
+                0 0 120px rgba(218, 165, 32, 0.3);
+        }
+        
+        .login-title {
+            text-align: center;
+            color: #FFD700;
+            font-family: 'Cinzel', serif;
+            font-size: 2em;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+        }
+        
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .form-group label {
+            color: #C19A6B;
+            font-size: 0.95em;
+        }
+        
+        .form-group input {
+            padding: 12px;
+            background: rgba(30, 25, 15, 0.6);
+            border: 2px solid #8B7355;
+            color: #FFD700;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #B8860B;
+            box-shadow: 0 0 15px rgba(184, 134, 11, 0.4);
+        }
+        
+        .login-btn {
+            padding: 15px;
+            background: linear-gradient(135deg, #8B7355 0%, #B8860B 50%, #8B7355 100%);
+            border: 2px solid #B8860B;
+            color: #FFD700;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .login-btn:hover {
+            background: linear-gradient(135deg, #B8860B 0%, #FFD700 50%, #B8860B 100%);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+            transform: scale(1.02);
+        }
+        
+        .login-error {
+            color: #ff4444;
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff4444;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .back-link a {
+            color: #C19A6B;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .back-link a:hover {
+            color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-login">
+        <div class="login-box">
+            <h1 class="login-title">⊕ АДМИНКА ⊕</h1>
+            
+            <form method="POST" class="login-form">
+                <div class="form-group">
+                    <label for="username">Логин</label>
+                    <input type="text" id="username" name="username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="login-btn">Войти</button>
+            </form>
+            
+            {% if error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+            
+            <div class="back-link">
+                <a href="{{ url_for('index') }}">← Вернуться на главную</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

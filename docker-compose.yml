@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: groh_cult_web
+    ports:
+      - "5000:5000"
+    volumes:
+      # Монтируем config.json для сохранения настроек между перезапусками
+      - ./config.json:/app/config.json
+      # Монтируем статические файлы (если нужно менять флаг/изображения)
+      - ./static:/app/static
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - groh_network
+
+  # Опциональный nginx для проксирования (раскомментируйте при необходимости)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: groh_cult_nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - web
+  #   restart: unless-stopped
+  #   networks:
+  #     - groh_network
+
+networks:
+  groh_network:
+    driver: bridge
+

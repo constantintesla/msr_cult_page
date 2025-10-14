@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Documentation
+README.md
+README_FLASK.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Old files (если есть старые версии)
+index.html
+# Не игнорируем config.json - он нужен для работы!
+

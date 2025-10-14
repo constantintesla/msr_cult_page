@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель - Рука Гроха</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: radial-gradient(ellipse at center, #0a0805 0%, #000 70%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .admin-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #B8860B;
+            padding: 40px;
+            box-shadow: 
+                0 0 60px rgba(255, 215, 0, 0.4),
+                0 0 120px rgba(218, 165, 32, 0.3);
+        }
+        
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #8B7355;
+        }
+        
+        .admin-title {
+            color: #FFD700;
+            font-family: 'Cinzel', serif;
+            font-size: 2.5em;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            margin: 0;
+        }
+        
+        .logout-btn {
+            padding: 10px 20px;
+            background: rgba(139, 115, 85, 0.6);
+            border: 2px solid #8B7355;
+            color: #C19A6B;
+            text-decoration: none;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(184, 134, 11, 0.6);
+            border-color: #B8860B;
+            color: #FFD700;
+            box-shadow: 0 0 15px rgba(184, 134, 11, 0.4);
+        }
+        
+        .admin-form {
+            display: flex;
+            flex-direction: column;
+            gap: 35px;
+        }
+        
+        .form-section {
+            background: rgba(30, 25, 15, 0.4);
+            border: 2px solid #8B7355;
+            padding: 25px;
+        }
+        
+        .section-title {
+            color: #FFD700;
+            font-family: 'Cinzel', serif;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #C19A6B;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #8B7355;
+            color: #FFD700;
+            font-size: 1em;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #B8860B;
+            box-shadow: 0 0 15px rgba(184, 134, 11, 0.4);
+        }
+        
+        .form-hint {
+            color: #8B7355;
+            font-size: 0.85em;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .coords-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .submit-btn {
+            padding: 18px;
+            background: linear-gradient(135deg, #8B7355 0%, #B8860B 50%, #8B7355 100%);
+            border: 3px solid #B8860B;
+            color: #FFD700;
+            font-size: 1.3em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-family: 'Cinzel', serif;
+            margin-top: 20px;
+        }
+        
+        .submit-btn:hover {
+            background: linear-gradient(135deg, #B8860B 0%, #FFD700 50%, #B8860B 100%);
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.8);
+            transform: scale(1.02);
+            color: #000;
+        }
+        
+        .success-message {
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid #0f0;
+            color: #0f0;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            animation: fadeIn 0.5s;
+        }
+        
+        .preview-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(139, 115, 85, 0.4);
+            border: 1px solid #8B7355;
+            color: #C19A6B;
+            text-decoration: none;
+            margin-top: 10px;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        
+        .preview-btn:hover {
+            background: rgba(184, 134, 11, 0.4);
+            border-color: #B8860B;
+            color: #FFD700;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .coords-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .admin-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1 class="admin-title">⊕ АДМИН-ПАНЕЛЬ ⊕</h1>
+            <a href="{{ url_for('admin_logout') }}" class="logout-btn">Выйти</a>
+        </div>
+        
+        <form method="POST" action="{{ url_for('admin_update') }}" class="admin-form">
+            <!-- Секция 1: Кодовый замок -->
+            <div class="form-section">
+                <h2 class="section-title">🔐 Кодовый замок</h2>
+                <div class="form-group">
+                    <label for="lock_code">Код для входа (4 цифры):</label>
+                    <input type="text" id="lock_code" name="lock_code" value="{{ config.lock_code }}" 
+                           maxlength="4" pattern="[0-9]{4}" required>
+                    <div class="form-hint">Введите 4-значный числовой код</div>
+                </div>
+            </div>
+            
+            <!-- Секция 2: Загадка -->
+            <div class="form-section">
+                <h2 class="section-title">☸ Коан изобилия</h2>
+                <div class="form-group">
+                    <label for="riddle_text">Текст загадки:</label>
+                    <textarea id="riddle_text" name="riddle_text" required>{{ config.riddle.text|safe }}</textarea>
+                    <div class="form-hint">Можно использовать HTML теги: &lt;br&gt;, &lt;p&gt;, &lt;strong&gt;</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="riddle_answers">Правильные ответы (через запятую):</label>
+                    <input type="text" id="riddle_answers" name="riddle_answers" 
+                           value="{{ config.riddle.answers|join(', ') }}" required>
+                    <div class="form-hint">Например: золото, gold, голд (регистр не важен)</div>
+                </div>
+            </div>
+            
+            <!-- Секция 3: Координаты -->
+            <div class="form-section">
+                <h2 class="section-title">🗺️ Координаты Храма</h2>
+                <div class="coords-group">
+                    <div class="form-group">
+                        <label for="coord_lat">Широта (Latitude):</label>
+                        <input type="number" id="coord_lat" name="coord_lat" 
+                               value="{{ config.coordinates.lat }}" step="0.000001" required>
+                        <div class="form-hint">Например: 42.991889</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="coord_lng">Долгота (Longitude):</label>
+                        <input type="number" id="coord_lng" name="coord_lng" 
+                               value="{{ config.coordinates.lng }}" step="0.000001" required>
+                        <div class="form-hint">Например: 131.916750</div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="coord_display">Отображаемые координаты:</label>
+                    <input type="text" id="coord_display" name="coord_display" 
+                           value="{{ config.coordinates.display }}" required>
+                    <div class="form-hint">Формат для отображения: 42°59'30.8"N 131°55'00.3"E</div>
+                </div>
+            </div>
+            
+            <!-- Секция 4: Смена пароля -->
+            <div class="form-section">
+                <h2 class="section-title">🔑 Безопасность</h2>
+                <div class="form-group">
+                    <label for="admin_password">Новый пароль админа (оставьте пустым, если не хотите менять):</label>
+                    <input type="password" id="admin_password" name="admin_password" autocomplete="new-password">
+                    <div class="form-hint">Рекомендуется использовать сложный пароль</div>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn">⊕ Сохранить изменения ⊕</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="{{ url_for('index') }}" class="preview-btn" target="_blank">👁️ Предпросмотр страницы</a>
+        </div>
+    </div>
+</body>
+</html>
+
