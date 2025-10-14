@@ -29,17 +29,17 @@ sudo systemctl enable docker
 
 ```bash
 # Собрать образ и запустить контейнер
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### 2. Проверка статуса
 
 ```bash
 # Посмотреть логи
-docker-compose logs -f
+docker compose logs -f
 
 # Проверить статус контейнеров
-docker-compose ps
+docker compose ps
 ```
 
 ### 3. Доступ к приложению
@@ -55,50 +55,50 @@ docker-compose ps
 
 ```bash
 # Запустить контейнеры
-docker-compose up -d
+docker compose up -d
 
 # Остановить контейнеры
-docker-compose down
+docker compose down
 
 # Остановить и удалить все данные
-docker-compose down -v
+docker compose down -v
 
 # Перезапустить
-docker-compose restart
+docker compose restart
 ```
 
 ### Логи и отладка
 
 ```bash
 # Смотреть логи в реальном времени
-docker-compose logs -f
+docker compose logs -f
 
 # Логи только web сервиса
-docker-compose logs -f web
+docker compose logs -f web
 
 # Последние 100 строк логов
-docker-compose logs --tail=100
+docker compose logs --tail=100
 ```
 
 ### Обновление приложения
 
 ```bash
 # Пересобрать образ после изменений в коде
-docker-compose up -d --build
+docker compose up -d --build
 
 # Принудительная пересборка без кэша
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ### Вход в контейнер
 
 ```bash
 # Войти в shell контейнера
-docker-compose exec web /bin/bash
+docker compose exec web /bin/bash
 
 # Выполнить команду в контейнере
-docker-compose exec web ls -la
+docker compose exec web ls -la
 ```
 
 ## 📁 Структура Docker
@@ -171,7 +171,7 @@ nginx:
 2. Запустите:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Приложение будет доступно на http://localhost (порт 80)
@@ -192,7 +192,7 @@ mkdir ssl
 4. Перезапустите:
 
 ```bash
-docker-compose restart nginx
+docker compose restart nginx
 ```
 
 ## 🐛 Устранение неполадок
@@ -229,7 +229,7 @@ docker-compose up -d
 
 ```bash
 # Перезапустить контейнер
-docker-compose restart web
+docker compose restart web
 
 # Или проверить права доступа к файлу
 ls -la config.json
@@ -289,8 +289,8 @@ environment:
 5. **Регулярно обновляйте образы**:
 
 ```bash
-docker-compose pull
-docker-compose up -d --build
+docker compose pull
+docker compose up -d --build
 ```
 
 ## 🚀 Деплой в облако
@@ -329,7 +329,7 @@ docker run -p 5000:5000 yourusername/groh-cult:latest
 ```bash
 # Версия Docker
 docker --version
-docker-compose --version
+docker compose version
 
 # Информация о системе
 docker info

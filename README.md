@@ -42,7 +42,7 @@
 
 ## 🚀 Быстрый старт
 
-### Вариант 1: Docker (Рекомендуется) 🐳
+### Вариант 1: Docker Compose (Рекомендуется) 🐳
 
 ```bash
 # 1. Клонируйте репозиторий
@@ -50,7 +50,7 @@ git clone <repo-url>
 cd msr_cult_page
 
 # 2. Запустите через Docker Compose
-docker-compose up -d --build
+docker compose up -d --build
 
 # 3. Откройте в браузере
 # Сайт: http://localhost:5000
@@ -87,7 +87,7 @@ msr_cult_page/
 │   ├── style.css              # Стили и анимации
 │   ├── script.js              # JavaScript логика + Leaflet карта
 │   ├── Флаг Чечевуры PDF.png  # Флаг культа
-│   └── secret.jpg             # Колесо Дхармы (SVG)
+│   └── uploads/               # Загружаемые файлы админкой (фото храма)
 │
 ├── templates/                  # HTML шаблоны (Jinja2)
 │   ├── index.html             # Главная страница квеста
@@ -165,22 +165,22 @@ msr_cult_page/
 
 ```bash
 # Запуск
-docker-compose up -d
+docker compose up -d
 
 # Остановка
-docker-compose down
+docker compose down
 
 # Просмотр логов
-docker-compose logs -f
+docker compose logs -f
 
 # Перезапуск
-docker-compose restart
+docker compose restart
 
 # Пересборка после изменений
-docker-compose up -d --build
+docker compose up -d --build
 
 # Очистка
-docker-compose down -v
+docker compose down -v
 docker system prune -a
 ```
 

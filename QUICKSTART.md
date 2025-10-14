@@ -6,7 +6,7 @@
 
 ```bash
 docker --version
-docker-compose --version
+docker compose version
 ```
 
 Если не установлен:
@@ -16,7 +16,7 @@ docker-compose --version
 ### 2️⃣ Соберите и запустите
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### 3️⃣ Откройте в браузере
@@ -38,19 +38,19 @@ docker-compose up -d --build
 ## 🛑 Остановить
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ## 📋 Посмотреть логи
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## 🔄 Перезапустить
 
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ---
@@ -71,13 +71,13 @@ ports:
 
 **Не запускается?**
 ```bash
-docker-compose logs web
+docker compose logs web
 ```
 
 **Очистить всё и начать заново:**
 ```bash
-docker-compose down -v
+docker compose down -v
 docker system prune -a
-docker-compose up -d --build
+docker compose up -d --build
 ```
 

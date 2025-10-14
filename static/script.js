@@ -20,7 +20,12 @@ function updateRiddle() {
     
     const riddleContainer = document.getElementById('riddle-container');
     if (riddleContainer) {
-        riddleContainer.innerHTML = appConfig.riddle.text;
+        // Преобразуем текст с <br> в строки с оформлением
+        const raw = appConfig.riddle.text || '';
+        const parts = raw.split(/<br\s*\/?>(\s*)/i).filter(Boolean);
+        riddleContainer.innerHTML = parts
+            .map((line) => `<div class="riddle-line golden-text">${line}</div>`) 
+            .join('');
     }
 }
 
@@ -98,13 +103,25 @@ function checkAnswer() {
         
         setTimeout(() => {
             questContainer.style.display = 'none';
-            // Переходим на экран Врат Пяти Слов сначала
+            // Показываем экран DnD банка и карту
             const gate = document.getElementById('pentagram-gate');
             gate.classList.remove('hidden');
+            // Карта должна быть видна для DnD — показываем секцию карты
+            const secret = document.getElementById('secret-section');
+            secret.classList.remove('hidden');
+            // Скрываем символ культа и предупреждение на следующих экранах
+            const cs = document.querySelector('.cult-symbol');
+            const warn = document.querySelector('.warning');
+            if (cs) cs.style.display = 'none';
+            if (warn) warn.style.display = 'none';
             playRevealSound();
             
-            // Активация логики врат
-            setupPentagramGate();
+            // Инициализируем карту и DnD
+            updateCoordinates();
+        // Не создавать карту повторно, если уже создана
+        setTimeout(() => {
+            initTreasureMapWithDnD();
+        }, 200);
         }, 1000);
         
     } else {
@@ -127,9 +144,9 @@ function updateCoordinates() {
     
     const coordsElement = document.getElementById('map-coordinates');
     if (coordsElement) {
-        coordsElement.innerHTML = `
-            📍 Координаты Храма: <span class="coords-highlight">${appConfig.coordinates.display}</span>
-        `;
+        // По умолчанию держим скрытым
+        coordsElement.classList.add('hidden');
+        coordsElement.innerHTML = `📍 Координаты Храма: <span class="coords-highlight">${appConfig.coordinates.display}</span>`;
     }
 }
 
@@ -160,11 +177,14 @@ function playRevealSound() {
 }
 
 // Добавляем возможность отправки формы по нажатию Enter
-document.getElementById('answer').addEventListener('keypress', function(event) {
+const answerInputEl = document.getElementById('answer');
+if (answerInputEl) {
+    answerInputEl.addEventListener('keypress', function(event) {
     if (event.key === 'Enter') {
         checkAnswer();
     }
 });
+}
 
 // Добавляем дополнительные анимации в CSS через JavaScript
 const style = document.createElement('style');
@@ -363,67 +383,42 @@ function initTreasureMap() {
     const targetLng = appConfig.coordinates.lng;
     
     // Создаем карту
+    if (window.__leafletMap) {
+        // Карта уже инициализирована — просто обновим размер и вернём ссылку
+        setTimeout(() => window.__leafletMap.invalidateSize(), 50);
+        return window.__leafletMap;
+    }
+
     const map = L.map('real-map', {
         center: [targetLat, targetLng],
-        zoom: 15,
-        zoomControl: true,
+        zoom: 16,
+        zoomControl: false,
         attributionControl: false
     });
+    // Отключаем все виды зума/жестов
+    map.scrollWheelZoom.disable();
+    map.doubleClickZoom.disable();
+    map.touchZoom.disable();
+    map.boxZoom.disable();
+    map.keyboard.disable();
+    map.dragging.disable();
+    // Сохраняем глобально ссылку на карту для последующего рисования пентаграммы
+    window.__leafletMap = map;
     
     // Добавляем слой OpenStreetMap
+    try {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19
     }).addTo(map);
+    } catch (e) {
+        console.error('Ошибка загрузки тайлов OSM:', e);
+    }
     
-    // Создаем золотой HTML для маркера
-    const goldMarkerHtml = `
-        <div class="gold-marker-pulse">
-            <div class="pulse-ring pulse-ring-1"></div>
-            <div class="pulse-ring pulse-ring-2"></div>
-            <div class="pulse-ring pulse-ring-3"></div>
-            <div class="gold-marker-icon">
-                <div class="marker-x-map">
-                    <div class="x-line-map line-1-map"></div>
-                    <div class="x-line-map line-2-map"></div>
-                </div>
-                <div class="marker-star-map">✦</div>
-            </div>
-        </div>
-    `;
-    
-    // Создаем кастомную иконку
-    const goldIcon = L.divIcon({
-        className: 'custom-gold-marker',
-        html: goldMarkerHtml,
-        iconSize: [80, 80],
-        iconAnchor: [40, 40]
-    });
-    
-    // Добавляем маркер
-    const marker = L.marker([targetLat, targetLng], { 
-        icon: goldIcon,
-        title: 'ХРАМ ГРОХА'
-    }).addTo(map);
-    
-    // Добавляем popup с информацией
-    marker.bindPopup(`
-        <div style="text-align: center; font-family: 'Cinzel', serif; color: #0a0805;">
-            <strong style="color: #B8860B; font-size: 16px;">✦ ХРАМ ГРОХА ✦</strong><br>
-            <span style="font-size: 12px; color: #666;">${appConfig.coordinates.display}</span>
-        </div>
-    `).openPopup();
-    
-    // Добавляем золотой круг вокруг метки
-    L.circle([targetLat, targetLng], {
-        color: '#FFD700',
-        fillColor: '#FFD700',
-        fillOpacity: 0.15,
-        radius: 100,
-        weight: 3
-    }).addTo(map);
+    // После показа контейнера убедимся, что карта знает о своих размерах
+    setTimeout(() => map.invalidateSize(), 50);
+    // На этапе DnD — не показываем храм и круг, оставляем чистую карту
 
-    // Пентаграмма: ввод слов и постановка точек
-    setupPentagramInputs(map, [targetLat, targetLng]);
+    // Пентаграмма через DnD: точки появятся после размещения всех пар
 }
 
 // Утилита: смещение координаты на заданное расстояние и угол (в метрах/градусах)
@@ -443,125 +438,450 @@ function offsetLatLng([lat, lng], distanceMeters, bearingDeg) {
     return [(lat2 * 180) / Math.PI, (lng2 * 180) / Math.PI];
 }
 
-function setupPentagramInputs(map, centerLatLng) {
-    const pgConfig = appConfig.pentagram || { vertices: [], radius_m: 150 };
-    const vertices = pgConfig.vertices || [];
-    const radius = pgConfig.radius_m || 150;
-    const placed = new Array(vertices.length).fill(false);
-    const markers = [];
+// Удалено: setupPentagramInputs — старая логика ввода пар слов
 
-    // Вешаем обработчики ввода на все поля
-    document.querySelectorAll('.pg-input').forEach((input) => {
-        input.addEventListener('input', () => {
-            const vertexIndex = parseInt(input.getAttribute('data-vertex'), 10);
-            const pairInputs = Array.from(document.querySelectorAll(`.pg-input[data-vertex="${vertexIndex}"]`));
-            if (pairInputs.length < 2 || !vertices[vertexIndex]) return;
-
-            const [val1, val2] = pairInputs.map((el) => el.value.trim().toLowerCase());
-            const [word1, word2] = vertices[vertexIndex].words.map((w) => w.toLowerCase());
-
-            if (val1 === word1 && val2 === word2 && !placed[vertexIndex]) {
-                placed[vertexIndex] = true;
-
-                const angle = vertices[vertexIndex].angle_deg || 0;
-                const point = offsetLatLng(centerLatLng, radius, angle);
-
-                const dot = L.circleMarker(point, {
-                    radius: 8,
-                    color: '#FFD700',
-                    fillColor: '#FFD700',
-                    fillOpacity: 0.9,
-                    weight: 3
-                }).addTo(map);
-                markers.push(dot);
-
-                // Соединяем в звезду, когда поставлено хотя бы 3 точки — постепенно
-                drawPentagramIfReady(map, markers);
-            }
-        });
-    });
-}
-
-function drawPentagramIfReady(map, markers) {
-    if (markers.length < 5) return;
-
-    const points = markers.map((m) => m.getLatLng());
-    // Упорядочим как звезду (индексы 0-2-4-1-3-0)
-    const order = [0, 2, 4, 1, 3, 0];
-    const starCoords = order.map((i) => points[i]);
-
-    L.polyline(starCoords, {
-        color: '#DAA520',
-        weight: 3,
-        opacity: 0.9
-    }).addTo(map);
-}
+// Удалено: drawPentagramIfReady — старая отрисовка звезды по вводу
 
 // Экран врат: ввод пар слов → когда все 5 вершин подтверждены, активируем кнопку «ОТКРЫТЬ КАРТУ»
-function setupPentagramGate() {
+// Удалено: setupPentagramGate — не используется
+
+// --- Новая логика: DnD на карте ---
+function initTreasureMapWithDnD() {
+    // Гарантируем, что секция карты видима
+    const secret = document.getElementById('secret-section');
+    if (secret) secret.classList.remove('hidden');
+
+    initTreasureMap();
+    const mapContainer = document.getElementById('real-map');
+    const slotsLayer = document.getElementById('dnd-slots');
+    const bank = document.getElementById('dnd-bank');
+    const gate = document.getElementById('pentagram-gate');
+    if (gate) gate.classList.remove('hidden');
+    if (bank) bank.style.display = 'flex';
+    // На этапе DnD скрываем заголовок и текст секции "Путь к Храму"
+    if (secret) {
+        const title = secret.querySelector('h2.revealed-title');
+        const desc = secret.querySelector('.map-instruction');
+        if (title) title.style.display = 'none';
+        if (desc) desc.style.display = 'none';
+    }
+    // На экране карты также скрываем символ культа и предупреждение
+    const cs = document.querySelector('.cult-symbol');
+    const warn = document.querySelector('.warning');
+    if (cs) cs.style.display = 'none';
+    if (warn) warn.style.display = 'none';
+
     const pgConfig = appConfig.pentagram || { vertices: [], radius_m: 150 };
-    const vertices = pgConfig.vertices || [];
-    const placed = new Array(vertices.length).fill(false);
-    const openBtn = document.getElementById('open-map-btn');
-    if (!openBtn) return;
+    const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+    const radius = pgConfig.radius_m || 150;
+    const vertices = Array.isArray(pgConfig.vertices) ? pgConfig.vertices : [];
+    if (vertices.length === 0) {
+        console.warn('Нет вершин пентаграммы в конфиге');
+    }
 
-    document.querySelectorAll('#pentagram-gate .pg-input').forEach((input) => {
-        input.addEventListener('input', () => {
-            const vertexIndex = parseInt(input.getAttribute('data-vertex'), 10);
-            const pairInputs = Array.from(document.querySelectorAll(`#pentagram-gate .pg-input[data-vertex="${vertexIndex}"]`));
-            if (pairInputs.length < 2 || !vertices[vertexIndex]) return;
+    // Создаём 5 внешних и 5 внутренних слотов (внутренние — смещены к центру, повернуты на ~36°)
+    // Если заданы координаты слотов в конфиге, используем их (5 outer + 5 inner)
+    // Всегда рассчитываем позиции слотов относительно контейнера карты по углам пентаграммы,
+    // чтобы блоки не зависели от географических координат
+    let approxOuter, approxInner;
+    const computeSlotsByAngles = () => {
+        const container = window.__leafletMap && window.__leafletMap.getContainer ? window.__leafletMap.getContainer() : null;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const outerRadius = Math.min(rect.width, rect.height) * 0.45; // 45% от меньшей стороны
+        const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
+        const innerRadius = outerRadius * innerFactor;
 
-            const [val1, val2] = pairInputs.map((el) => el.value.trim().toLowerCase());
-            const [word1, word2] = vertices[vertexIndex].words.map((w) => w.toLowerCase());
+        const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+        const toPercent = (x, y) => {
+            const lx = (x / rect.width) * 100;
+            const ty = (y / rect.height) * 100;
+            // Держим точки в видимой области контейнера
+            return { left: `${clamp(lx, 4, 96)}%`, top: `${clamp(ty, 4, 96)}%` };
+        };
 
-            const statusEl = document.querySelector(`#pentagram-gate .pg-status[data-vertex="${vertexIndex}"]`);
+        approxOuter = [];
+        approxInner = [];
+        const haveDnd = Array.isArray(pgConfig.dnd_points) && pgConfig.dnd_points.length >= 10;
+        if (haveDnd && window.__leafletMap) {
+            // 0..4 внешние, 5..9 внутренние
+            const map = window.__leafletMap;
+            for (let i = 0; i < 5; i++) {
+                const pOuter = pgConfig.dnd_points[i];
+                const pInner = pgConfig.dnd_points[i + 5];
+                const ptOuter = map.latLngToContainerPoint([pOuter.lat, pOuter.lng]);
+                const ptInner = map.latLngToContainerPoint([pInner.lat, pInner.lng]);
+                approxOuter.push(toPercent(ptOuter.x, ptOuter.y));
+                approxInner.push(toPercent(ptInner.x, ptInner.y));
+            }
+        } else {
+            const defaultAngles = [-90, -18, 54, 126, 198];
+            const useDefault = (!vertices || vertices.length < 5) || vertices.every(v => !v || v.angle_deg === undefined || Number(v.angle_deg) === 0);
+            for (let i = 0; i < 5; i++) {
+                const baseAng = useDefault ? defaultAngles[i] : ((vertices[i] && typeof vertices[i].angle_deg === 'number') ? vertices[i].angle_deg : defaultAngles[i]);
+                const angOuter = (baseAng - 90) * Math.PI / 180; // смещение, чтобы -90 был наверху
+                const ox = cx + outerRadius * Math.cos(angOuter);
+                const oy = cy + outerRadius * Math.sin(angOuter);
+                approxOuter.push(toPercent(ox, oy));
 
-            if (val1 === word1 && val2 === word2) {
-                placed[vertexIndex] = true;
-                pairInputs.forEach((el) => {
-                    el.style.borderColor = '#B8860B';
-                    el.style.boxShadow = '0 0 12px rgba(218,165,32,0.6)';
-                });
-                if (statusEl) {
-                    statusEl.classList.remove('err');
-                    statusEl.classList.add('ok');
+                const angInner = ((baseAng + 36) - 90) * Math.PI / 180; // внутренние смещены на 36°
+                const ix = cx + innerRadius * Math.cos(angInner);
+                const iy = cy + innerRadius * Math.sin(angInner);
+                approxInner.push(toPercent(ix, iy));
+            }
+        }
+    };
+    computeSlotsByAngles();
+    // (approxOuter/approxInner сформированы выше). Если из конфига не удалось, fallback на дефолт.
+    if (!approxOuter || approxOuter.length !== 5 || !approxInner || approxInner.length !== 5) {
+        approxOuter = [
+            { left: '50%', top: '5%' },
+            { left: '94%', top: '24%' },
+            { left: '84%', top: '93%' },
+            { left: '16%', top: '93%' },
+            { left: '6%', top: '24%' }
+        ];
+        approxInner = [
+            { left: '50%', top: '28%' },
+            { left: '74%', top: '40%' },
+            { left: '62%', top: '76%' },
+            { left: '38%', top: '76%' },
+            { left: '26%', top: '40%' }
+        ];
+    }
+
+    // Создаём DOM-слоты
+    slotsLayer.innerHTML = '';
+    // Пары символов: один и тот же знак для внешней/внутренней точки, но разного цвета
+    const pairSymbols = ['✦','✪','☸','☬','☯'];
+    const outerColors = ['#ff2b2b','#ff3838','#e61e1e','#ff4d4d','#d91c1c'];
+    const innerColors = ['#111111','#222222','#000000','#2b2b2b','#1a1a1a'];
+
+    for (let i = 0; i < 5; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'dnd-slot';
+        slot.dataset.index = String(i);
+        slot.dataset.type = 'outer';
+        const pos = approxOuter[i];
+        slot.style.left = pos.left;
+        slot.style.top = pos.top;
+        const btn = document.createElement('button');
+        btn.className = 'slot-btn';
+        btn.textContent = pairSymbols[i % pairSymbols.length];
+        btn.style.color = outerColors[i % outerColors.length];
+        btn.setAttribute('aria-label', `Вершина ${i+1}`);
+        btn.onclick = () => promptWordForSlot(i, 'outer', vertices);
+        slot.appendChild(btn);
+        slotsLayer.appendChild(slot);
+    }
+    for (let i = 0; i < 5; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'dnd-slot';
+        slot.dataset.index = String(i);
+        slot.dataset.type = 'inner';
+        const pos = approxInner[i];
+        slot.style.left = pos.left;
+        slot.style.top = pos.top;
+        const btn = document.createElement('button');
+        btn.className = 'slot-btn';
+        btn.textContent = pairSymbols[i % pairSymbols.length];
+        btn.style.color = innerColors[i % innerColors.length];
+        btn.setAttribute('aria-label', `Внутренняя вершина ${i+1}`);
+        btn.onclick = () => promptWordForSlot(i, 'inner', vertices);
+        slot.appendChild(btn);
+        slotsLayer.appendChild(slot);
+    }
+
+    // Банк слов не используем в кнопочном варианте
+    if (bank) bank.style.display = 'none';
+
+    // В кнопочном режиме нет DnD обработчиков
+
+    // Пересчитываем позиции символов при изменении размера карты/экрана
+    const reposition = () => {
+        computeSlotsByAngles();
+        if (approxOuter && approxInner) {
+            for (let i = 0; i < 5; i++) {
+                const o = document.querySelector(`.dnd-slot[data-index="${i}"][data-type="outer"]`);
+                if (o && approxOuter[i]) {
+                    o.style.left = approxOuter[i].left;
+                    o.style.top = approxOuter[i].top;
                 }
-            } else if (val1 || val2) {
-                // Если что-то введено, но пара не совпала — показываем ошибку
-                if (statusEl) {
-                    statusEl.classList.remove('ok');
-                    statusEl.classList.add('err');
+                const inn = document.querySelector(`.dnd-slot[data-index="${i}"][data-type="inner"]`);
+                if (inn && approxInner[i]) {
+                    inn.style.left = approxInner[i].left;
+                    inn.style.top = approxInner[i].top;
                 }
-                pairInputs.forEach((el) => {
-                    el.style.borderColor = '#ff6b6b';
-                    el.style.boxShadow = '0 0 10px rgba(255,107,107,0.6)';
-                });
+            }
+        }
+    };
+    window.addEventListener('resize', reposition);
+    window.addEventListener('orientationchange', reposition);
+    if (window.__leafletMap) {
+        window.__leafletMap.on('resize', reposition);
+    }
+    setTimeout(reposition, 200);
+}
+
+function promptWordForSlot(idx, type, vertices) {
+    const v = vertices[idx];
+    const expected = (type === 'outer') ? (v.words[0] || '') : (v.words[1] || '');
+    const val = window.prompt('Введи слово для вершины:');
+    if (!val) return;
+    if (val.trim().toLowerCase() === expected.toLowerCase()) {
+        const slot = document.querySelector(`.dnd-slot[data-index="${idx}"][data-type="${type}"]`);
+        if (slot) {
+            const btn = slot.querySelector('button');
+            if (btn) btn.classList.add('solved');
+            slot.classList.add('ok');
+        }
+        placeVertexAndConnect(idx, vertices, type);
+        checkAllVerticesClosed(vertices);
+    } else {
+        alert('Неверно');
+    }
+}
+
+// Рисуем вершину (точку) и соединяем по порядку звезды с уже закрытыми
+const __placedVerticesOuter = new Set();
+const __placedVerticesInner = new Set();
+let __finalTransitionTriggered = false;
+let __starPolyline = null;
+function placeVertexAndConnect(idx, vertices, type) {
+    const map = findLeafletMapInstance();
+    if (!map) return;
+    const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+    const baseRadius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
+    const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
+    const dnd = (appConfig.pentagram && Array.isArray(appConfig.pentagram.dnd_points) && appConfig.pentagram.dnd_points.length >= 10) ? appConfig.pentagram.dnd_points : null;
+    const v = vertices[idx];
+    const isOuter = (type === 'outer');
+    const useRadius = isOuter ? baseRadius : Math.max(10, Math.floor(baseRadius * innerFactor));
+    const defaultAngles = [-90, -18, 54, 126, 198];
+    const useDefault = (!vertices || vertices.length < 5) || vertices.every(x => !x || x.angle_deg === undefined || Number(x.angle_deg) === 0);
+    let latlng;
+    if (dnd) {
+        const p = isOuter ? dnd[idx] : dnd[idx + 5];
+        latlng = L.latLng(p.lat, p.lng);
+    } else {
+        const baseAngle = useDefault ? defaultAngles[idx] : (v.angle_deg || 0);
+        const angle = baseAngle + (isOuter ? 0 : 36);
+        const pt = offsetLatLng(center, useRadius, angle);
+        latlng = L.latLng(pt[0], pt[1]);
+    }
+    L.circleMarker(latlng, { radius: isOuter ? 9 : 8, color: '#000000', fillColor: isOuter ? '#ff2b2b' : '#111111', fillOpacity: 0.95, weight: 3 }).addTo(map);
+
+    if (type === 'outer') {
+        __placedVerticesOuter.add(idx);
+        // Обновим соединения по порядку звезды (0-2-4-1-3-0), но только для уже закрытых
+        const order = [0, 2, 4, 1, 3, 0];
+        const available = order.filter((i) => __placedVerticesOuter.has(i));
+        if (available.length >= 2) {
+            const points = available.map(i => {
+                if (dnd) {
+                    const p = dnd[i];
+                    return L.latLng(p.lat, p.lng);
+                } else {
+                    const vi = vertices[i];
+                    const baseAng = useDefault ? defaultAngles[i] : (vi.angle_deg || 0);
+                    const p = offsetLatLng(center, baseRadius, baseAng);
+                    return L.latLng(p[0], p[1]);
+                }
+            });
+            if (available.length >= 3) points.push(points[0]);
+            if (__starPolyline) {
+                __starPolyline.setLatLngs(points);
             } else {
-                // Очищено — возвращаем базовый вид
-                if (statusEl) {
-                    statusEl.classList.remove('ok', 'err');
-                }
-                pairInputs.forEach((el) => {
-                    el.style.borderColor = '#8B7355';
-                    el.style.boxShadow = '';
-                });
+                __starPolyline = L.polyline(points, { color: '#ff1a1a', weight: 4, opacity: 1 }).addTo(map);
             }
+        }
+            } else {
+        __placedVerticesInner.add(idx);
+    }
+}
 
-            // Если все 5 подтверждены — разрешаем открыть карту
-            if (placed.every(Boolean)) {
-                openBtn.disabled = false;
-            }
+function checkAllVerticesClosed(vertices) {
+    if (__placedVerticesOuter.size === 5 && __placedVerticesInner.size === 5 && !__finalTransitionTriggered) {
+        __finalTransitionTriggered = true;
+        // Автоматический переход через 2 секунды с плавным затуханием в золото
+        setTimeout(() => {
+            fadeToGoldThen(() => {
+                window.location.href = '/temple';
+            });
+        }, 2000);
+    }
+}
+
+function checkCompletionAndDrawPentagram(vertices) {
+    const allOk = Array.from(document.querySelectorAll('.dnd-slot')).every(s => s.classList.contains('ok'));
+    if (!allOk) return;
+    // Поэтапная анимация: лучи к центру, затем звезда
+    const targetLat = appConfig.coordinates.lat;
+    const targetLng = appConfig.coordinates.lng;
+    const map = findLeafletMapInstance();
+    if (!map) return;
+
+    const center = [targetLat, targetLng];
+    const radius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
+    const dnd = (appConfig.pentagram && Array.isArray(appConfig.pentagram.dnd_points) && appConfig.pentagram.dnd_points.length >= 10) ? appConfig.pentagram.dnd_points : null;
+    let latLngs;
+    if (dnd) {
+        latLngs = [0,1,2,3,4].map(i => L.latLng(dnd[i].lat, dnd[i].lng));
+    } else {
+        const defaultAngles = [-90, -18, 54, 126, 198];
+        const useDefault = (!vertices || vertices.length < 5) || vertices.every(v => !v || v.angle_deg === undefined || Number(v.angle_deg) === 0);
+        const points = vertices.map((v, i) => {
+            const ang = useDefault ? defaultAngles[i] : (v.angle_deg || 0);
+            return offsetLatLng(center, radius, ang);
         });
+        latLngs = points.map(p => L.latLng(p[0], p[1]));
+    }
+    const order = [0, 2, 4, 1, 3, 0];
+    const star = order.map(i => latLngs[i]);
+
+    // 1) Лучи из вершин в центр (медленная анимация)
+    const rays = [];
+    latLngs.forEach((p) => {
+        const r = L.polyline([p, p], { color: '#FFD700', weight: 2, opacity: 0.0 }).addTo(map);
+        rays.push(r);
+    });
+    let rIdx = 0;
+    const rayTimer = setInterval(() => {
+        if (rIdx >= rays.length) {
+            clearInterval(rayTimer);
+            // 2) После лучей — звезда, более медленно
+            drawStarSlow(map, star, center);
+            return;
+        }
+        const ray = rays[rIdx];
+        ray.setStyle({ opacity: 0.9 });
+        ray.setLatLngs([latLngs[rIdx], L.latLng(center[0], center[1])]);
+        rIdx++;
+    }, 600); // медленнее
+}
+
+function drawStarSlow(map, star, center) {
+    const base = L.polyline(star, { color: '#DAA520', weight: 2, opacity: 0.4 }).addTo(map);
+    const segs = [];
+    for (let i = 0; i < star.length - 1; i++) {
+        const seg = L.polyline([star[i], star[i]], { color: '#FFD700', weight: 4, opacity: 0.0 }).addTo(map);
+        segs.push(seg);
+    }
+    let idx = 0;
+    const timer = setInterval(() => {
+        if (idx >= segs.length) {
+            clearInterval(timer);
+            // После завершения анимации ничего не показываем, переход выполнит checkAllVerticesClosed
+            return;
+        }
+        const seg = segs[idx];
+        seg.setStyle({ opacity: 0.95 });
+        seg.setLatLngs([star[idx], star[idx + 1]]);
+        idx++;
+    }, 450); // медленнее
+}
+
+// Кнопка открытия Храма больше не используется
+
+function drawTempleMarkerAndPopup() {
+    const map = findLeafletMapInstance();
+    if (!map) return;
+    const targetLat = appConfig.coordinates.lat;
+    const targetLng = appConfig.coordinates.lng;
+
+    const goldMarkerHtml = `
+        <div class="gold-marker-pulse">
+            <div class="pulse-ring pulse-ring-1"></div>
+            <div class="pulse-ring pulse-ring-2"></div>
+            <div class="pulse-ring pulse-ring-3"></div>
+            <div class="gold-marker-icon">
+                <div class="marker-x-map">
+                    <div class="x-line-map line-1-map"></div>
+                    <div class="x-line-map line-2-map"></div>
+                </div>
+                <div class="marker-star-map">✦</div>
+            </div>
+        </div>
+    `;
+
+    const goldIcon = L.divIcon({
+        className: 'custom-gold-marker',
+        html: goldMarkerHtml,
+        iconSize: [80, 80],
+        iconAnchor: [40, 40]
+    });
+    const marker = L.marker([targetLat, targetLng], { icon: goldIcon, title: 'ХРАМ ГРОХА' }).addTo(map);
+    // Вместо popup — финальный экран по клику на маркер
+    marker.on('click', () => {
+        showFinalOverlay();
     });
 
-    openBtn.addEventListener('click', () => {
-        // Скрываем врата, показываем карту и инициализируем её
-        document.getElementById('pentagram-gate').classList.add('hidden');
-        const secret = document.getElementById('secret-section');
-        secret.classList.remove('hidden');
-        updateCoordinates();
-        setTimeout(() => initTreasureMap(), 200);
+    // Убираем CTA после появления маркера
+    const cta = document.getElementById('center-cta');
+    if (cta) cta.remove();
+    // Не показываем координаты на экране врат
+    const coordsElement = document.getElementById('map-coordinates');
+    if (coordsElement) coordsElement.classList.add('hidden');
+
+    // Обеспечим кликабельность маркера: временно отключим клики по слотам
+    const slotsLayer = document.getElementById('dnd-slots');
+    if (slotsLayer) slotsLayer.style.pointerEvents = 'none';
+}
+
+function showFinalOverlay() {
+    const photoUrl = appConfig && appConfig.temple && appConfig.temple.photo_url ? appConfig.temple.photo_url : '';
+    const photoCaption = appConfig && appConfig.temple && appConfig.temple.photo_caption ? appConfig.temple.photo_caption : '';
+    const finalMsg = appConfig && appConfig.temple && appConfig.temple.final_message ? appConfig.temple.final_message : '';
+    // Создадим или переиспользуем overlay
+    let overlay = document.getElementById('final-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'final-overlay';
+        overlay.className = 'final-overlay';
+        const box = document.createElement('div');
+        box.className = 'final-box';
+        box.innerHTML = `
+            <div style="color:#B8860B; font-weight:bold; margin-bottom:8px;">✦ ХРАМ ГРОХА ✦</div>
+            ${photoUrl ? `<img class=\"final-photo\" src=\"${photoUrl}\" alt=\"Temple Photo\">` : ''}
+            ${photoCaption ? `<div class=\"final-caption\">${photoCaption}</div>` : ''}
+            ${finalMsg ? `<div class=\"final-message\">${finalMsg}</div>` : ''}
+            <button id="final-close-btn" class="final-close-btn">Закрыть</button>
+        `;
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        const closeBtn = overlay.querySelector('#final-close-btn');
+        if (closeBtn) closeBtn.onclick = () => overlay.remove();
+    }
+}
+
+function fadeToGoldThen(cb) {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(218, 165, 32, 0)';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '40000';
+    overlay.style.transition = 'background 1s ease-in';
+    document.body.appendChild(overlay);
+    // плавно до золотого
+    requestAnimationFrame(() => {
+        overlay.style.background = 'rgba(218, 165, 32, 0.7)';
     });
+    setTimeout(() => {
+        try { cb && cb(); } finally {
+            // убрать дымку, если нужно оставить финальный — не убираем сразу
+            setTimeout(() => overlay.remove(), 400);
+        }
+    }, 1000);
+}
+
+function findLeafletMapInstance() {
+    // Получить объект карты Leaflet, созданный в initTreasureMap
+    const mapContainer = document.querySelector('#real-map .leaflet-container');
+    // Leaflet не хранит ссылку прямо в DOM нативно, поэтому используем хак: сохраняем глобально при создании
+    return window.__leafletMap || null;
 }
 
 // Запускаем создание образов, логотипов и золотых частиц при загрузке
@@ -569,14 +889,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Загружаем конфигурацию
     await loadConfig();
     
-    // Создаем визуальные эффекты
-    createHauntingFigures();
-    createFloatingLogos();
-    createGoldParticles();
+    // Создаем визуальные эффекты на страницах, где есть контейнеры
+    if (document.getElementById('haunting-figures')) {
+        createHauntingFigures();
+    }
+    if (document.getElementById('floating-logos')) {
+        createFloatingLogos();
+    }
+    if (document.getElementById('gold-particles')) {
+        createGoldParticles();
+    }
 
     // Отладочные кнопки для переключения экранов
     if (appConfig && appConfig.debug) {
         injectDebugControls();
+    }
+
+    // Стартовое состояние: на всякий случай явно показываем контейнеры DnD, если уже прошли загадку
+    const gate = document.getElementById('pentagram-gate');
+    const bank = document.getElementById('dnd-bank');
+    const slots = document.getElementById('dnd-slots');
+    if (gate && bank && slots) {
+        // Не меняем видимость, но гарантируем, что стили не скрывают по z-index
+        bank.style.zIndex = '1500';
+        slots.style.zIndex = '1000';
+        // Инициализируем DnD и карту только когда нужно (после загадки)
+    }
+
+    // Инициализация редактора пентаграммы в админке
+    const editor = document.getElementById('editor-map');
+    if (editor) {
+        initPentagramEditor();
     }
 });
 
@@ -626,4 +969,121 @@ function injectDebugControls() {
     dbg.appendChild(btnSecret);
     document.body.appendChild(dbg);
 }
+
+// --- Pentagram Editor (admin) ---
+function initPentagramEditor() {
+    const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+    const map = L.map('editor-map', {
+        center,
+        zoom: 15,
+        zoomControl: true,
+        attributionControl: false
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    const outerMarkers = [];
+    const innerMarkers = [];
+    let mode = 'center';
+    const makeDotIcon = (color) => L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border:2px solid #000;border-radius:50%;background:${color}"></div>` });
+    let centerMarker = L.marker(center, { draggable: true, icon: L.divIcon({ className:'', html:`<div style="width:16px;height:16px;border:2px solid #B8860B;border-radius:50%;background:rgba(255,215,0,0.4);"></div>` }) }).addTo(map);
+
+    const btnCenter = document.getElementById('btn-editor-center');
+    const btnLoad = document.getElementById('btn-editor-load');
+    const btnClear = document.getElementById('btn-editor-clear');
+    const btnCalc = document.getElementById('btn-editor-calc');
+    const btnApply = document.getElementById('btn-editor-apply');
+
+    const setMode = (m) => { mode = m; };
+    if (btnCenter) btnCenter.onclick = () => setMode('center');
+    // Убрали режимы расстановки, оставляем центр и расчёт
+    if (btnClear) btnClear.onclick = () => {
+        outerMarkers.forEach(m => map.removeLayer(m));
+        innerMarkers.forEach(m => map.removeLayer(m));
+        outerMarkers.length = 0;
+        innerMarkers.length = 0;
+    };
+    if (btnLoad) btnLoad.onclick = () => {
+        // Загрузить из полей формы в редактор
+        btnClear.click();
+        const points = [];
+        for (let i = 0; i < 10; i++) {
+            const latField = document.querySelector(`[name="pg_dnd_lat_${i}"]`);
+            const lngField = document.querySelector(`[name="pg_dnd_lng_${i}"]`);
+            if (latField && lngField && latField.value && lngField.value) {
+                points.push({ lat: parseFloat(latField.value), lng: parseFloat(lngField.value) });
+            }
+        }
+        points.slice(0,5).forEach(p => outerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#ff2b2b') }).addTo(map)));
+        points.slice(5,10).forEach(p => innerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#111') }).addTo(map)));
+    };
+    if (btnCalc) btnCalc.onclick = () => {
+        // Рассчитать точки по текущим углам/радиусу/центру
+        const centerLatLng = centerMarker.getLatLng();
+        const radius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
+        const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
+        let vertices = (appConfig.pentagram && appConfig.pentagram.vertices) ? appConfig.pentagram.vertices : [];
+        // Если углы не заданы, используем стандартные углы пентаграммы
+        const defaultAngles = [-90, -18, 54, 126, 198];
+        const useDefault = (!vertices || vertices.length < 5) || vertices.every(v => !v || v.angle_deg === undefined || Number(v.angle_deg) === 0);
+        if (useDefault) {
+            vertices = defaultAngles.map((ang, i) => ({ angle_deg: ang, words: [
+                (appConfig.pentagram && appConfig.pentagram.vertices && appConfig.pentagram.vertices[i] && appConfig.pentagram.vertices[i].words && appConfig.pentagram.vertices[i].words[0]) || '',
+                (appConfig.pentagram && appConfig.pentagram.vertices && appConfig.pentagram.vertices[i] && appConfig.pentagram.vertices[i].words && appConfig.pentagram.vertices[i].words[1]) || ''
+            ] }));
+        }
+        const toLatLng = (bearingDeg, r) => {
+            const pt = offsetLatLng([centerLatLng.lat, centerLatLng.lng], r, bearingDeg);
+            return L.latLng(pt[0], pt[1]);
+        };
+        // Очистим существующие
+        btnClear.click();
+        for (let i = 0; i < 5; i++) {
+            const v = vertices[i];
+            const ang = (v && typeof v.angle_deg === 'number') ? v.angle_deg : defaultAngles[i];
+            outerMarkers.push(L.marker(toLatLng(ang, radius), { draggable: true, icon: makeDotIcon('#ff2b2b') }).addTo(map));
+            innerMarkers.push(L.marker(toLatLng(ang + 36, radius * innerFactor), { draggable: true, icon: makeDotIcon('#111') }).addTo(map));
+        }
+    };
+    if (btnApply) btnApply.onclick = () => {
+        // Заполняем поля формы dnd_points по маркерам (внешние потом внутренние)
+        const points = [];
+        outerMarkers.forEach(m => { const p = m.getLatLng(); points.push({lat:p.lat, lng:p.lng}); });
+        innerMarkers.forEach(m => { const p = m.getLatLng(); points.push({lat:p.lat, lng:p.lng}); });
+        for (let i = 0; i < 10; i++) {
+            const p = points[i];
+            const latField = document.querySelector(`[name="pg_dnd_lat_${i}"]`);
+            const lngField = document.querySelector(`[name="pg_dnd_lng_${i}"]`);
+            if (p && latField && lngField) {
+                latField.value = p.lat.toFixed(6);
+                lngField.value = p.lng.toFixed(6);
+            }
+            if (!p && latField && lngField) { latField.value=''; lngField.value=''; }
+        }
+        // Также перенесём центр
+        const c = centerMarker.getLatLng();
+        const latCenter = document.getElementById('coord_lat');
+        const lngCenter = document.getElementById('coord_lng');
+        if (latCenter && lngCenter) { latCenter.value = c.lat.toFixed(6); lngCenter.value = c.lng.toFixed(6); }
+    };
+
+    const addMarker = (latlng, type) => {
+        const color = (type === 'outer') ? '#ff2b2b' : '#111';
+        const marker = L.marker(latlng, { draggable: true, icon: makeDotIcon(color) });
+        marker.addTo(map);
+        if (type === 'outer') outerMarkers.push(marker); else innerMarkers.push(marker);
+    };
+
+    map.on('click', (e) => {
+        if (mode === 'center') {
+            centerMarker.setLatLng(e.latlng);
+        } else if (mode === 'outer') {
+            if (outerMarkers.length < 5) addMarker(e.latlng, 'outer');
+        } else if (mode === 'inner') {
+            if (innerMarkers.length < 5) addMarker(e.latlng, 'inner');
+        }
+    });
+}
+
+
+
 

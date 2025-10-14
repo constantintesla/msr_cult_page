@@ -246,6 +246,54 @@ body::after {
     text-transform: uppercase;
     animation: titleGlow 4s ease-in-out infinite;
 }
+/* Чуть уменьшим заголовок на /temple и добавим межстрочное выравнивание */
+.temple-title {
+    font-size: 3.2em;
+    line-height: 1.15;
+    letter-spacing: 6px;
+    text-shadow:
+        0 0 16px rgba(255, 215, 0, 0.7),
+        0 0 28px rgba(218, 165, 32, 0.5),
+        0 6px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Оформление финальной страницы */
+.temple-wrapper {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+}
+
+.temple-card {
+    width: 100%;
+    max-width: 900px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 3px solid #B8860B;
+    box-shadow:
+        0 0 40px rgba(218, 165, 32, 0.35),
+        inset 0 0 30px rgba(40, 30, 10, 0.45);
+    padding: 32px 28px;
+    text-align: center;
+}
+
+.temple-divider {
+    width: 180px;
+    height: 2px;
+    margin: 10px auto 18px auto;
+    background: linear-gradient(90deg, transparent, #FFD700, transparent);
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+}
+
+.final-photo {
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .temple-title { font-size: 2.2em; letter-spacing: 4px; }
+    .temple-card { padding: 22px 16px; }
+}
 
 @keyframes titleGlow {
     0%, 100% {
@@ -446,17 +494,47 @@ body::after {
     to { transform: rotate(360deg); }
 }
 
+.riddle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
 .riddle-line {
-    font-size: 1.4em;
+    font-size: 1.6em;
+    margin: 10px 0;
+}
+
+.golden-text {
     color: #FFD700;
-    margin: 15px 0;
-    font-style: italic;
-    text-shadow: 
-        0 0 10px rgba(255, 215, 0, 0.6),
-        0 0 20px rgba(218, 165, 32, 0.4);
-    font-weight: 500;
-    animation: textShimmer 3s ease-in-out infinite;
-    animation-delay: calc(var(--line-index) * 0.2s);
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-shadow:
+        0 0 8px rgba(255, 215, 0, 0.6),
+        0 0 18px rgba(218, 165, 32, 0.5),
+        0 0 28px rgba(184, 134, 11, 0.4);
+    animation: richPulse 3.2s ease-in-out infinite;
+}
+
+@keyframes richPulse {
+    0%, 100% {
+        color: #DAA520;
+        text-shadow:
+            0 0 6px rgba(218, 165, 32, 0.6),
+            0 0 14px rgba(184, 134, 11, 0.5),
+            0 0 24px rgba(184, 134, 11, 0.35);
+        transform: scale(1);
+    }
+    50% {
+        color: #FFD700;
+        text-shadow:
+            0 0 12px rgba(255, 215, 0, 0.9),
+            0 0 28px rgba(218, 165, 32, 0.7),
+            0 0 42px rgba(255, 215, 0, 0.5);
+        transform: scale(1.02);
+    }
 }
 
 .riddle-line:nth-child(1) { --line-index: 0; }
@@ -709,61 +787,166 @@ body::after {
     animation: reveal 2s ease-in;
 }
 
-/* Поля ввода для пентаграммы */
-.pentagram-inputs {
+/* DnD банк и слоты */
+.dnd-bank {
+    display: none;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    padding: 12px;
+    position: relative;
+    z-index: 1500;
+}
+
+.dnd-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.8);
+    border: 2px solid #8B7355;
+    color: #FFD700;
+    cursor: grab;
+    user-select: none;
+}
+
+.dnd-slots {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 7; /* выше тайлов карты и маркеров */
-    pointer-events: none; /* чтобы карта была скроллируемой; включим на инпутах */
+    pointer-events: none; /* карта кликабельна */
+    z-index: 1000; /* выше всех leaflet-панелей */
 }
 
-.pg-field {
+.dnd-slot {
     position: absolute;
-    display: flex;
-    gap: 8px;
     transform: translate(-50%, -50%);
-    z-index: 8;
-    pointer-events: auto;
+    width: auto;
+    height: auto;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #C19A6B;
+    pointer-events: auto; /* клики по кнопке */
 }
 
-.pg-input {
-    width: 120px;
-    padding: 8px 10px;
-    background: rgba(0,0,0,0.8);
-    color: #FFD700;
-    border: 2px solid #8B7355;
-    font-family: 'Cinzel', serif;
+.dnd-slot .slot-words {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
-.pg-status {
-    min-width: 24px;
-    height: 24px;
-    align-self: center;
-    border-radius: 50%;
-    border: 2px solid #8B7355;
-    box-shadow: 0 0 8px rgba(218,165,32,0.4);
+.dnd-slot.partial {
+    border-color: #DAA520;
+    box-shadow: 0 0 10px rgba(218,165,32,0.8);
 }
 
-.pg-status.ok {
-    background: radial-gradient(circle, #19c37d 0%, rgba(25,195,125,0.2) 70%);
+.dnd-slot.ok {
     border-color: #19c37d;
     box-shadow: 0 0 10px rgba(25,195,125,0.9);
 }
 
-.pg-status.err {
-    background: radial-gradient(circle, #ff6b6b 0%, rgba(255,107,107,0.2) 70%);
+.dnd-slot.err {
     border-color: #ff6b6b;
     box-shadow: 0 0 10px rgba(255,107,107,0.8);
 }
 
-.pg-input:focus {
-    outline: none;
-    border-color: #B8860B;
-    box-shadow: 0 0 12px rgba(218,165,32,0.6);
+.slot-btn {
+    background: transparent;
+    color: #FFD700;
+    border: 2px solid rgba(0,0,0,0.75);
+    padding: 2px 4px; /* чуть больше символа */
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    line-height: 1;
+    text-shadow: 0 0 12px rgba(218,165,32,0.8);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.35);
+    box-shadow: 0 0 6px rgba(0,0,0,0.6), 0 0 10px rgba(255,0,0,0.2);
 }
+
+.slot-btn.solved {
+    color: #19c37d;
+    text-shadow: 0 0 12px rgba(25,195,125,0.9);
+    border-color: #19c37d;
+    box-shadow: 0 0 10px rgba(25,195,125,0.9);
+}
+
+@media (max-width: 768px) {
+    .slot-btn {
+        font-size: 18px;
+        padding: 2px 3px;
+    }
+}
+
+.final-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 30000;
+}
+
+.final-overlay.hidden {
+    display: none;
+}
+
+.final-box {
+    background: rgba(255,255,255,0.98);
+    border: 3px solid #B8860B;
+    padding: 24px 32px;
+    text-align: center;
+    color: #0a0805;
+}
+/* Контент финального экрана */
+.final-photo {
+    max-width: 80vw;
+    max-height: 50vh;
+    width: auto;
+    height: auto;
+    border: 2px solid #B8860B;
+    box-shadow: 0 0 20px rgba(218,165,32,0.6);
+    margin-bottom: 14px;
+}
+.final-caption {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 10px;
+}
+.final-message {
+    font-size: 1.3em;
+    color: #FFD700;
+    line-height: 1.6;
+    margin-top: 8px;
+    text-shadow:
+        0 0 10px rgba(255, 215, 0, 0.8),
+        0 0 18px rgba(218, 165, 32, 0.5);
+    white-space: pre-wrap; /* сохраняем переносы из админки */
+}
+.final-close-btn {
+    margin-top: 16px;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, #B8860B 0%, #8B7355 100%);
+    color: #FFD700;
+    border: 2px solid #DAA520;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+}
+
+/* Удалена центральная кнопка над картой */
+
+/* Удалены стили для старых полей ввода пентаграммы */
 
 /* Размещение по вершинам пятиугольника вокруг карты */
 /* Пять вершин по окружности контейнера карты */
@@ -780,6 +963,44 @@ body::after {
     background: #0a0805;
 }
 
+/* Поднять popup над нашими слоями (банком/слотами/CTA) */
+.leaflet-pane.leaflet-popup-pane {
+    z-index: 3000 !important;
+}
+.leaflet-pane.leaflet-marker-pane {
+    z-index: 5000 !important;
+}
+.leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border: 3px solid #B8860B !important;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.6) !important;
+    border-radius: 0 !important;
+}
+.leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border: 2px solid #B8860B !important;
+}
+/* Стили для изображения в попапе */
+.temple-popup {
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    color: #0a0805;
+}
+.temple-popup img {
+    display: block;
+    max-width: 260px;
+    max-height: 180px;
+    width: 100%;
+    height: auto;
+    margin: 8px auto 6px auto;
+    border: 2px solid #B8860B;
+    box-shadow: 0 0 12px rgba(218,165,32,0.5);
+}
+.temple-popup .caption {
+    font-size: 12px;
+    color: #666;
+}
+
 .real-map-wrapper .leaflet-tile {
     filter: sepia(0.3) saturate(0.8) brightness(0.9);
 }
@@ -788,6 +1009,7 @@ body::after {
 .custom-gold-marker {
     background: transparent !important;
     border: none !important;
+    pointer-events: auto !important;
 }
 
 .gold-marker-pulse {

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Админ-панель - Рука Гроха</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -201,7 +203,8 @@
             <a href="{{ url_for('admin_logout') }}" class="logout-btn">Выйти</a>
         </div>
         
-        <form method="POST" action="{{ url_for('admin_update') }}" class="admin-form">
+        <form method="POST" action="{{ url_for('admin_update') }}" class="admin-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <!-- Секция 1: Кодовый замок -->
             <div class="form-section">
                 <h2 class="section-title">🔐 Кодовый замок</h2>
@@ -236,15 +239,15 @@
                 <div class="coords-group">
                     <div class="form-group">
                         <label for="coord_lat">Широта (Latitude):</label>
-                        <input type="number" id="coord_lat" name="coord_lat" 
-                               value="{{ config.coordinates.lat }}" step="0.000001" required>
+                    <input type="number" id="coord_lat" name="coord_lat" 
+                               value="{{ config.coordinates.lat }}" step="any" inputmode="decimal" required>
                         <div class="form-hint">Например: 42.991889</div>
                     </div>
                     
                     <div class="form-group">
                         <label for="coord_lng">Долгота (Longitude):</label>
-                        <input type="number" id="coord_lng" name="coord_lng" 
-                               value="{{ config.coordinates.lng }}" step="0.000001" required>
+                    <input type="number" id="coord_lng" name="coord_lng" 
+                               value="{{ config.coordinates.lng }}" step="any" inputmode="decimal" required>
                         <div class="form-hint">Например: 131.916750</div>
                     </div>
                 </div>
@@ -261,26 +264,84 @@
             <div class="form-section">
                 <h2 class="section-title">✦ Пентаграмма вокруг Храма</h2>
                 <div class="form-group">
-                    <label for="pg_radius">Радиус пентаграммы (метры):</label>
-                    <input type="number" id="pg_radius" name="pg_radius" value="{{ (config.pentagram.radius_m if config.pentagram else 180) }}" step="1" min="10">
-                    <div class="form-hint">На каком расстоянии от центра карты будут вершины пентаграммы</div>
+                    <label>Изображение для попапа Храма (загрузка файла):</label>
+                    <input type="file" name="temple_photo_file" accept="image/*">
+                    <div class="form-hint">Загрузите изображение (будет сохранено в static/uploads/ и показано в попапе).</div>
                 </div>
-
                 <div class="form-group">
-                    <label>Вершины (слова и угол):</label>
+                    <label>Подпись к фото (необязательно):</label>
+                    <input type="text" name="temple_photo_caption" value="{{ (config.temple and config.temple.photo_caption) or '' }}" placeholder="Описание/подпись к фото">
+                </div>
+                <div class="form-group">
+                    <label>Напутствие аколитам (финальный экран):</label>
+                    <textarea name="temple_final_message" placeholder="Текст напутствия...">{{ (config.temple and config.temple.final_message) or '' }}</textarea>
+                    <div class="form-hint">Этот текст будет показан на финальном экране вместе с фото.</div>
+                </div>
+                <details>
+                    <summary style="color:#C19A6B; cursor:pointer;">Дополнительно: параметры шаблона</summary>
+                    <div class="form-group">
+                        <label for="pg_radius">Радиус пентаграммы (метры):</label>
+                        <input type="number" id="pg_radius" name="pg_radius" value="{{ (config.pentagram.radius_m if config.pentagram else 180) }}" step="1" min="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="pg_inner_factor">Коэффициент внутреннего радиуса (0..1):</label>
+                        <input type="number" id="pg_inner_factor" name="pg_inner_factor" value="{{ (config.pentagram.inner_radius_factor if config.pentagram and config.pentagram.inner_radius_factor else 0.38) }}" step="0.01" min="0.1" max="0.9">
+                    </div>
+                </details>
+
+                <!-- Убрали ручной ввод слов и углов: вершины задаются координатами на карте ниже -->
+                <div class="form-group">
+                    <label>Координаты кнопок на карте (10 точек):</label>
                     <div class="coords-group">
-                        {% for i in range(5) %}
-                        {% set v = (config.pentagram.vertices[i] if config.pentagram and config.pentagram.vertices|length > i else None) %}
+                        {% set dnd = (config.pentagram.dnd_points if config.pentagram and config.pentagram.dnd_points else []) %}
+                        <div style="grid-column: 1 / -1; color:#8B7355; margin-bottom:6px;">Сначала 5 внешних, затем 5 внутренних точек</div>
+                        {% for i in range(10) %}
+                        {% set p = (dnd[i] if dnd|length > i else None) %}
                         <div>
-                            <div style="color:#C19A6B; margin-bottom:6px;">Вершина {{ i+1 }}</div>
-                            <input type="text" name="pg_word1_{{ i }}" placeholder="Слово 1" value="{{ (v.words[0] if v and v.words|length>0 else '') }}" style="margin-bottom:8px;">
-                            <input type="text" name="pg_word2_{{ i }}" placeholder="Слово 2" value="{{ (v.words[1] if v and v.words|length>1 else '') }}" style="margin-bottom:8px;">
-                            <input type="number" name="pg_angle_{{ i }}" placeholder="Угол (deg)" value="{{ (v.angle_deg if v and v.angle_deg is not none else 0) }}" step="1">
-                            <div class="form-hint">Угол относительно севера (градусы, по часовой стрелке)</div>
+                            <div style="color:#C19A6B; margin-bottom:6px;">Точка {{ i+1 }}</div>
+                            <input type="number" step="any" inputmode="decimal" name="pg_dnd_lat_{{ i }}" placeholder="Широта" value="{{ (p.lat if p else '') }}" style="margin-bottom:8px;">
+                            <input type="number" step="any" inputmode="decimal" name="pg_dnd_lng_{{ i }}" placeholder="Долгота" value="{{ (p.lng if p else '') }}">
                         </div>
                         {% endfor %}
                     </div>
+                    <div class="form-hint">Оставьте пустым, чтобы использовать вычисление по углам/радиусу</div>
                 </div>
+
+                <div class="form-group">
+                    <label>Слова для точек:</label>
+                    <div class="coords-group">
+                        {% set verts = (config.pentagram.vertices if config.pentagram and config.pentagram.vertices else []) %}
+                        <div style="grid-column: 1 / -1; color:#8B7355; margin-bottom:6px;">Внешние (1–5)</div>
+                        {% for i in range(5) %}
+                        {% set v = (verts[i] if verts|length > i else None) %}
+                        <div>
+                            <input type="text" name="pg_word_outer_{{ i }}" placeholder="Внешнее слово {{ i+1 }}" value="{{ (v.words[0] if v and v.words|length>0 else '') }}">
+                        </div>
+                        {% endfor %}
+                        <div style="grid-column: 1 / -1; color:#8B7355; margin:10px 0 6px;">Внутренние (1–5)</div>
+                        {% for i in range(5) %}
+                        {% set v = (verts[i] if verts|length > i else None) %}
+                        <div>
+                            <input type="text" name="pg_word_inner_{{ i }}" placeholder="Внутреннее слово {{ i+1 }}" value="{{ (v.words[1] if v and v.words|length>1 else '') }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-hint">Слова сопоставляются точкам по порядку: сначала 1–5 внешних, затем 1–5 внутренних.</div>
+                </div>
+            </div>
+
+            <!-- Секция 6: Редактор пентаграммы на карте -->
+            <div class="form-section">
+                <h2 class="section-title">🗺️ Редактор пентаграммы</h2>
+                <div id="editor-map" style="height: 420px; border: 2px solid #8B7355;"></div>
+                <div style="margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" id="btn-editor-center" class="logout-btn">Выбрать центр</button>
+                    <button type="button" id="btn-editor-calc" class="logout-btn">Рассчитать по углам</button>
+                    <button type="button" id="btn-editor-load" class="logout-btn">Загрузить с формы на карту</button>
+                    <button type="button" id="btn-editor-clear" class="logout-btn">Очистить точки</button>
+                    <button type="button" id="btn-editor-apply" class="logout-btn">Заполнить форму из карты</button>
+                </div>
+                <div class="form-hint">Клик по карте добавляет/перетаскивает точки. После редактирования нажмите «Заполнить форму из карты», затем «Сохранить изменения» выше.</div>
             </div>
             
             <!-- Секция 5: Смена пароля -->
@@ -301,5 +362,6 @@
         </div>
     </div>
 </body>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 </html>
 

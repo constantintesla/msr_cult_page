@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⊕ Рука Гроха ⊕</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     
     <!-- Leaflet для настоящей карты -->
@@ -139,43 +140,11 @@
             <div id="error-message" class="error-message"></div>
         </div>
 
+        <!-- Экран DnD на карте: пары слов нужно перетащить в 5 слотов, затем строим пентаграмму -->
         <div id="pentagram-gate" class="secret-section hidden">
             <h2 class="revealed-title">✦ ВРАТА ПЯТИ СЛОВ ✦</h2>
-            <p class="map-instruction">Введи пять пар священных слов. Каждая угаданная пара зажжёт точку будущей пентаграммы.</p>
-
-            <div class="pentagram-gate-container">
-                <div class="pentagram-inputs-gate">
-                    <div class="pg-field pg-1">
-                        <input type="text" class="pg-input" data-vertex="0" placeholder="Слово 1">
-                        <input type="text" class="pg-input" data-vertex="0" placeholder="Слово 2">
-                        <div class="pg-status" data-vertex="0"></div>
-                    </div>
-                    <div class="pg-field pg-2">
-                        <input type="text" class="pg-input" data-vertex="1" placeholder="Слово 1">
-                        <input type="text" class="pg-input" data-vertex="1" placeholder="Слово 2">
-                        <div class="pg-status" data-vertex="1"></div>
-                    </div>
-                    <div class="pg-field pg-3">
-                        <input type="text" class="pg-input" data-vertex="2" placeholder="Слово 1">
-                        <input type="text" class="pg-input" data-vertex="2" placeholder="Слово 2">
-                        <div class="pg-status" data-vertex="2"></div>
-                    </div>
-                    <div class="pg-field pg-4">
-                        <input type="text" class="pg-input" data-vertex="3" placeholder="Слово 1">
-                        <input type="text" class="pg-input" data-vertex="3" placeholder="Слово 2">
-                        <div class="pg-status" data-vertex="3"></div>
-                    </div>
-                    <div class="pg-field pg-5">
-                        <input type="text" class="pg-input" data-vertex="4" placeholder="Слово 1">
-                        <input type="text" class="pg-input" data-vertex="4" placeholder="Слово 2">
-                        <div class="pg-status" data-vertex="4"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top:20px;">
-                <button id="open-map-btn" class="unlock-btn" disabled>⊕ ОТКРЫТЬ КАРТУ ⊕</button>
-            </div>
+            <p class="map-instruction">Открой 10 вершин, вводя слова для символов вокруг Храма. После открытия произойдёт переход.</p>
+            <div class="dnd-bank" id="dnd-bank"></div>
         </div>
 
         <div id="secret-section" class="secret-section hidden">
@@ -183,10 +152,12 @@
             <p class="map-instruction">Следуй за золотом, и обретёшь Храм</p>
             
             <div class="treasure-map-container">
-                <div id="real-map" class="real-map-wrapper"></div>
+                <div id="real-map" class="real-map-wrapper">
+                <div id="dnd-slots" class="dnd-slots"></div>
+                </div>
             </div>
             
-            <div class="map-coordinates" id="map-coordinates">
+            <div class="map-coordinates hidden" id="map-coordinates">
                 <!-- Координаты загружаются динамически -->
             </div>
             

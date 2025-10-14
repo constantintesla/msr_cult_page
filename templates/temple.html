@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✦ Храм ✦</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:,">
+    <!-- SVG фильтры для анимаций фона, как на index -->
+    <svg style="position: absolute; width: 0; height: 0;">
+        <defs>
+            <filter id="wavy">
+                <feTurbulence id="turbulence" type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="2" result="turbulence">
+                    <animate attributeName="baseFrequency" dur="3s" values="0.02 0.06;0.02 0.03;0.02 0.06" repeatCount="indefinite"/>
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+            <filter id="wavySmall">
+                <feTurbulence type="fractalNoise" baseFrequency="0.015 0.04" numOctaves="2" result="turbulence">
+                    <animate attributeName="baseFrequency" dur="2.5s" values="0.015 0.05;0.015 0.025;0.015 0.05" repeatCount="indefinite"/>
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+        </defs>
+    </svg>
+</head>
+<body>
+    <div class="blood-drip"></div>
+    <div class="noise"></div>
+    <div class="vignette"></div>
+    <div class="haunting-figures" id="haunting-figures"></div>
+    <div class="floating-logos" id="floating-logos"></div>
+    <div class="gold-particles" id="gold-particles"></div>
+    <div class="temple-wrapper">
+        <div class="temple-card">
+            <h1 class="title temple-title">✦ Храм ✦</h1>
+            <div class="temple-divider"></div>
+            {% set photo = (config.temple.photo_url if config.temple and config.temple.photo_url else None) %}
+            {% set caption = (config.temple.photo_caption if config.temple and config.temple.photo_caption else None) %}
+            {% set message = (config.temple.final_message if config.temple and config.temple.final_message else None) %}
+            {% if photo %}
+            <img src="{{ photo }}" alt="Temple" class="final-photo" style="max-width:80vw; max-height:60vh;"/>
+            {% endif %}
+            {% if caption %}
+            <div class="final-caption">{{ caption }}</div>
+            {% endif %}
+            {% if message %}
+            <div class="final-message" style="margin-top:14px;">{{ message }}</div>
+            {% endif %}
+            <div class="map-coordinates" style="margin-top:24px;">
+                📍 Координаты Храма: <span class="coords-highlight">{{ config.coordinates.display }}</span>
+            </div>
+        </div>
+    </div>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Золотой fade-in при открытии финальной страницы
+    var overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(218, 165, 32, 0.75)';
+    overlay.style.zIndex = '40000';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.transition = 'opacity 800ms ease-out';
+    overlay.style.opacity = '1';
+    document.body.appendChild(overlay);
+    // Плавно исчезаем
+    setTimeout(function() {
+        overlay.style.opacity = '0';
+        setTimeout(function(){ if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 900);
+    }, 80);
+});
+</script>
+ </body>
+</html>
+
+

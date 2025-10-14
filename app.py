@@ -1,10 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+from werkzeug.utils import secure_filename
 import json
 import os
 from functools import wraps
 
 app = Flask(__name__)
-app.secret_key = 'groh_secret_key_change_this_in_production'  # Измените в продакшене!
+# В продакшене обязательно задайте переменную окружения SECRET_KEY
+app.secret_key = os.environ.get('SECRET_KEY', 'groh_secret_key_change_this_in_production')
+
+# Базовые флаги безопасности cookies сессии
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
 CONFIG_FILE = 'config.json'
 
@@ -38,7 +48,8 @@ def load_config():
 def save_config(config):
     """Сохранить конфигурацию в файл"""
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, indent=4, ensure_ascii=False, fp=f)
+        # ВАЖНО: первым идет объект, вторым — файловый дескриптор
+        json.dump(config, f, indent=4, ensure_ascii=False)
 
 def login_required(f):
     """Декоратор для защиты админских страниц"""
@@ -54,6 +65,17 @@ def index():
     """Главная страница квеста"""
     return render_template('index.html')
 
+@app.route('/favicon.ico')
+def favicon():
+    """Возвращаем пустой ответ, чтобы не было 404 для favicon."""
+    return make_response(('', 204))
+
+@app.route('/temple')
+def temple():
+    """Финальная страница ✦ Храм Благополучия ✦"""
+    config = load_config()
+    return render_template('temple.html', config=config)
+
 @app.route('/api/config')
 def get_config():
     """API для получения конфигурации (без админских данных)"""
@@ -63,6 +85,7 @@ def get_config():
         'riddle': config['riddle'],
         'coordinates': config['coordinates'],
         'pentagram': config.get('pentagram', {}),
+        'temple': config.get('temple', {}),
         'debug': config.get('debug', False)
     })
 
@@ -94,12 +117,21 @@ def admin_logout():
 def admin_panel():
     """Админ-панель"""
     config = load_config()
-    return render_template('admin.html', config=config)
+    # Простая CSRF-защита для формы обновления настроек
+    csrf_token = session.get('csrf_token')
+    if not csrf_token:
+        csrf_token = os.urandom(16).hex()
+        session['csrf_token'] = csrf_token
+    return render_template('admin.html', config=config, csrf_token=csrf_token)
 
 @app.route('/admin/update', methods=['POST'])
 @login_required
 def admin_update():
     """Обновление настроек"""
+    # Проверка CSRF-токена
+    form_token = request.form.get('csrf_token', '')
+    if not form_token or form_token != session.get('csrf_token'):
+        return redirect(url_for('admin_panel'))
     config = load_config()
     
     # Обновляем код замка
@@ -125,8 +157,9 @@ def admin_update():
         radius_m = config.get('pentagram', {}).get('radius_m', 180)
     vertices = []
     for i in range(5):
-        w1 = request.form.get(f'pg_word1_{i}', '').strip()
-        w2 = request.form.get(f'pg_word2_{i}', '').strip()
+        # Читаем слова из новых полей: outer/inner
+        w1 = request.form.get(f'pg_word_outer_{i}', '').strip()
+        w2 = request.form.get(f'pg_word_inner_{i}', '').strip()
         try:
             angle = float(request.form.get(f'pg_angle_{i}', '0'))
         except ValueError:
@@ -139,6 +172,66 @@ def admin_update():
         'radius_m': radius_m,
         'vertices': vertices
     }
+
+    # inner_radius_factor (необязательное поле)
+    try:
+        inner_factor = float(request.form.get('pg_inner_factor', config.get('pentagram', {}).get('inner_radius_factor', 0.38)))
+    except ValueError:
+        inner_factor = config.get('pentagram', {}).get('inner_radius_factor', 0.38)
+    config['pentagram']['inner_radius_factor'] = inner_factor
+
+    # DnD точки (необязательно 10)
+    dnd_points = []
+    for i in range(10):
+        lat_raw = request.form.get(f'pg_dnd_lat_{i}', '').strip()
+        lng_raw = request.form.get(f'pg_dnd_lng_{i}', '').strip()
+        if lat_raw and lng_raw:
+            try:
+                dnd_points.append({'lat': float(lat_raw), 'lng': float(lng_raw)})
+            except ValueError:
+                pass
+    if dnd_points:
+        config['pentagram']['dnd_points'] = dnd_points
+    else:
+        config['pentagram'].pop('dnd_points', None)
+
+    # Изображение для попапа Храма (загрузка файла)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    photo_file = request.files.get('temple_photo_file')
+    photo_caption = request.form.get('temple_photo_caption', '').strip()
+    if photo_file and photo_file.filename:
+        filename = secure_filename(photo_file.filename)
+        # Во избежание коллизий добавим префикс
+        base, ext = os.path.splitext(filename)
+        unique_name = f"temple_{abs(hash(base))}{ext}"
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+        photo_file.save(save_path)
+        rel_url = f"/static/uploads/{unique_name}"
+        config['temple'] = config.get('temple', {})
+        config['temple']['photo_url'] = rel_url
+        if photo_caption:
+            config['temple']['photo_caption'] = photo_caption
+        else:
+            config['temple'].pop('photo_caption', None)
+        # напутствие
+        final_msg = request.form.get('temple_final_message', '').strip()
+        if final_msg:
+            config['temple']['final_message'] = final_msg
+    else:
+        # Если файл не загружали, обновим/очистим подпись, но не трогаем текущий url
+        if photo_caption:
+            config['temple'] = config.get('temple', {})
+            config['temple']['photo_caption'] = photo_caption
+        else:
+            if 'temple' in config and 'photo_caption' in config['temple']:
+                config['temple'].pop('photo_caption', None)
+        final_msg = request.form.get('temple_final_message', '').strip()
+        if final_msg:
+            config['temple'] = config.get('temple', {})
+            config['temple']['final_message'] = final_msg
+        else:
+            if 'temple' in config and 'final_message' in config['temple']:
+                config['temple'].pop('final_message', None)
     
     # Обновляем пароль админа (если указан новый)
     new_password = request.form.get('admin_password', '').strip()
@@ -148,6 +241,27 @@ def admin_update():
     save_config(config)
     return redirect(url_for('admin_panel'))
 
+
+@app.after_request
+def set_security_headers(response):
+    """Минимальный набор заголовков безопасности для ответа."""
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    # Базовый CSP, разрешаем наши статические и инлайновые стили/скрипты при необходимости
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+        "style-src 'self' https://unpkg.com https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org; "
+        "connect-src 'self' https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://unpkg.com; "
+        "worker-src 'self'; "
+        "object-src 'none'"
+    )
+    response.headers.setdefault('Content-Security-Policy', csp)
+    return response
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
 
