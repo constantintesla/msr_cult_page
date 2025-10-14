@@ -125,7 +125,7 @@
             <p>Чтобы познать истинную природу изобилия, разгадай древнюю мудрость</p>
         </div>
 
-        <div class="quest-container">
+        <div class="quest-container" id="quest-container">
             <h2>☸ Разгадай коан изобилия ☸</h2>
             <div class="riddle" id="riddle-container">
                 <!-- Загрузка из API -->
@@ -137,6 +137,45 @@
             </div>
 
             <div id="error-message" class="error-message"></div>
+        </div>
+
+        <div id="pentagram-gate" class="secret-section hidden">
+            <h2 class="revealed-title">✦ ВРАТА ПЯТИ СЛОВ ✦</h2>
+            <p class="map-instruction">Введи пять пар священных слов. Каждая угаданная пара зажжёт точку будущей пентаграммы.</p>
+
+            <div class="pentagram-gate-container">
+                <div class="pentagram-inputs-gate">
+                    <div class="pg-field pg-1">
+                        <input type="text" class="pg-input" data-vertex="0" placeholder="Слово 1">
+                        <input type="text" class="pg-input" data-vertex="0" placeholder="Слово 2">
+                        <div class="pg-status" data-vertex="0"></div>
+                    </div>
+                    <div class="pg-field pg-2">
+                        <input type="text" class="pg-input" data-vertex="1" placeholder="Слово 1">
+                        <input type="text" class="pg-input" data-vertex="1" placeholder="Слово 2">
+                        <div class="pg-status" data-vertex="1"></div>
+                    </div>
+                    <div class="pg-field pg-3">
+                        <input type="text" class="pg-input" data-vertex="2" placeholder="Слово 1">
+                        <input type="text" class="pg-input" data-vertex="2" placeholder="Слово 2">
+                        <div class="pg-status" data-vertex="2"></div>
+                    </div>
+                    <div class="pg-field pg-4">
+                        <input type="text" class="pg-input" data-vertex="3" placeholder="Слово 1">
+                        <input type="text" class="pg-input" data-vertex="3" placeholder="Слово 2">
+                        <div class="pg-status" data-vertex="3"></div>
+                    </div>
+                    <div class="pg-field pg-5">
+                        <input type="text" class="pg-input" data-vertex="4" placeholder="Слово 1">
+                        <input type="text" class="pg-input" data-vertex="4" placeholder="Слово 2">
+                        <div class="pg-status" data-vertex="4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:20px;">
+                <button id="open-map-btn" class="unlock-btn" disabled>⊕ ОТКРЫТЬ КАРТУ ⊕</button>
+            </div>
         </div>
 
         <div id="secret-section" class="secret-section hidden">

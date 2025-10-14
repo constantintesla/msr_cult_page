@@ -61,7 +61,9 @@ def get_config():
     return jsonify({
         'lock_code': config['lock_code'],
         'riddle': config['riddle'],
-        'coordinates': config['coordinates']
+        'coordinates': config['coordinates'],
+        'pentagram': config.get('pentagram', {}),
+        'debug': config.get('debug', False)
     })
 
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -115,6 +117,28 @@ def admin_update():
         config['coordinates']['display'] = request.form.get('coord_display', '')
     except ValueError:
         pass  # Если ошибка конвертации, оставляем старые значения
+    
+    # Обновляем пентаграмму
+    try:
+        radius_m = int(request.form.get('pg_radius', config.get('pentagram', {}).get('radius_m', 180)))
+    except ValueError:
+        radius_m = config.get('pentagram', {}).get('radius_m', 180)
+    vertices = []
+    for i in range(5):
+        w1 = request.form.get(f'pg_word1_{i}', '').strip()
+        w2 = request.form.get(f'pg_word2_{i}', '').strip()
+        try:
+            angle = float(request.form.get(f'pg_angle_{i}', '0'))
+        except ValueError:
+            angle = 0
+        vertices.append({
+            'words': [w1, w2],
+            'angle_deg': angle
+        })
+    config['pentagram'] = {
+        'radius_m': radius_m,
+        'vertices': vertices
+    }
     
     # Обновляем пароль админа (если указан новый)
     new_password = request.form.get('admin_password', '').strip()

@@ -13,9 +13,20 @@
         "lng": 131.91675,
         "display": "42°59'30.8\"N 131°55'00.3\"E"
     },
+    "pentagram": {
+        "radius_m": 180,
+        "vertices": [
+            { "words": ["рука", "гроха"], "angle_deg": -90 },
+            { "words": ["кровь", "золото"], "angle_deg": -18 },
+            { "words": ["колесо", "сансары"], "angle_deg": 54 },
+            { "words": ["дхарма", "богатство"], "angle_deg": 126 },
+            { "words": ["ветер", "перемен"], "angle_deg": 198 }
+        ]
+    },
     "admin": {
         "username": "admin",
         "password": "groh2024"
-    }
+    },
+    "debug": false
 }
 

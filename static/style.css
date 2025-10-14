@@ -623,6 +623,24 @@ body::after {
     text-align: center;
     animation: fadeIn 1s ease-in;
 }
+.pentagram-gate-container {
+    position: relative;
+    width: 100%;
+    height: 420px;
+    border: 3px dashed #8B7355;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.pentagram-inputs-gate {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
 
 @keyframes fadeIn {
     from { 
@@ -690,6 +708,70 @@ body::after {
     background: #0a0805;
     animation: reveal 2s ease-in;
 }
+
+/* Поля ввода для пентаграммы */
+.pentagram-inputs {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 7; /* выше тайлов карты и маркеров */
+    pointer-events: none; /* чтобы карта была скроллируемой; включим на инпутах */
+}
+
+.pg-field {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+    transform: translate(-50%, -50%);
+    z-index: 8;
+    pointer-events: auto;
+}
+
+.pg-input {
+    width: 120px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.8);
+    color: #FFD700;
+    border: 2px solid #8B7355;
+    font-family: 'Cinzel', serif;
+}
+
+.pg-status {
+    min-width: 24px;
+    height: 24px;
+    align-self: center;
+    border-radius: 50%;
+    border: 2px solid #8B7355;
+    box-shadow: 0 0 8px rgba(218,165,32,0.4);
+}
+
+.pg-status.ok {
+    background: radial-gradient(circle, #19c37d 0%, rgba(25,195,125,0.2) 70%);
+    border-color: #19c37d;
+    box-shadow: 0 0 10px rgba(25,195,125,0.9);
+}
+
+.pg-status.err {
+    background: radial-gradient(circle, #ff6b6b 0%, rgba(255,107,107,0.2) 70%);
+    border-color: #ff6b6b;
+    box-shadow: 0 0 10px rgba(255,107,107,0.8);
+}
+
+.pg-input:focus {
+    outline: none;
+    border-color: #B8860B;
+    box-shadow: 0 0 12px rgba(218,165,32,0.6);
+}
+
+/* Размещение по вершинам пятиугольника вокруг карты */
+/* Пять вершин по окружности контейнера карты */
+.pg-1 { left: 50%; top: 2%; }
+.pg-2 { left: 92%; top: 22%; }
+.pg-3 { left: 80%; top: 90%; }
+.pg-4 { left: 20%; top: 90%; }
+.pg-5 { left: 8%; top: 22%; }
 
 /* Стилизация карты Leaflet */
 .real-map-wrapper .leaflet-container {
@@ -954,36 +1036,37 @@ body::after {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 1;
+    z-index: 2; /* выше фона, ниже контента */
     overflow: hidden;
 }
 
 .figure {
     position: absolute;
-    opacity: 0;
-    filter: blur(2px);
+    opacity: 0.22; /* было 0 → почти не видно */
+    filter: blur(1.5px) brightness(1.15);
     animation: appearDisappear 15s ease-in-out infinite;
 }
 
 .figure svg {
-    fill: #0a0805;
-    stroke: #2a2010;
+    fill: #0b0906;
+    stroke: #3a2c12;
     stroke-width: 1;
-    filter: drop-shadow(0 0 10px rgba(40, 30, 10, 0.9));
+    filter: drop-shadow(0 0 18px rgba(218, 165, 32, 0.18))
+            drop-shadow(0 0 6px rgba(184, 134, 11, 0.25));
 }
 
 @keyframes appearDisappear {
     0%, 100% { 
-        opacity: 0;
-        transform: scale(0.8) translateY(20px);
+        opacity: 0.05;
+        transform: scale(0.9) translateY(20px);
     }
     10%, 90% { 
-        opacity: 0.15;
+        opacity: 0.28;
         transform: scale(1) translateY(0);
     }
     50% { 
-        opacity: 0.25;
-        transform: scale(1.05) translateY(-10px);
+        opacity: 0.38;
+        transform: scale(1.04) translateY(-10px);
     }
 }
 
@@ -1043,13 +1126,13 @@ body::after {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 1;
+    z-index: 2;
     overflow: hidden;
 }
 
 .floating-logo {
     position: absolute;
-    opacity: 0;
+    opacity: 0.22; /* повысим видимость */
     animation: floatLogo 20s ease-in-out infinite;
 }
 
@@ -1057,7 +1140,7 @@ body::after {
     width: 80px;
     height: 80px;
     object-fit: contain;
-    filter: url(#wavySmall) brightness(0.3) drop-shadow(0 0 10px rgba(218, 165, 32, 0.3));
+    filter: url(#wavySmall) brightness(0.55) drop-shadow(0 0 14px rgba(218, 165, 32, 0.45));
     border-radius: 15%;
     animation: 
         smallFlagWave 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite,

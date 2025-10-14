@@ -98,16 +98,13 @@ function checkAnswer() {
         
         setTimeout(() => {
             questContainer.style.display = 'none';
-            secretSection.classList.remove('hidden');
+            // Переходим на экран Врат Пяти Слов сначала
+            const gate = document.getElementById('pentagram-gate');
+            gate.classList.remove('hidden');
             playRevealSound();
             
-            // Обновляем координаты на странице
-            updateCoordinates();
-            
-            // Инициализируем карту после открытия секции
-            setTimeout(() => {
-                initTreasureMap();
-            }, 500);
+            // Активация логики врат
+            setupPentagramGate();
         }, 1000);
         
     } else {
@@ -317,8 +314,9 @@ function createFloatingLogos() {
         logoDiv.className = 'floating-logo';
         
         const img = document.createElement('img');
-        img.src = 'Флаг Чечевуры PDF.png';
-        img.alt = 'Символ Сангхи';
+        // Используем статический путь, чтобы точно находился файл
+        img.src = 'static/Флаг Чечевуры PDF.png';
+        img.alt = 'Символ Руки Гроха';
         
         logoDiv.appendChild(img);
         logoDiv.style.left = pos.left;
@@ -423,6 +421,147 @@ function initTreasureMap() {
         radius: 100,
         weight: 3
     }).addTo(map);
+
+    // Пентаграмма: ввод слов и постановка точек
+    setupPentagramInputs(map, [targetLat, targetLng]);
+}
+
+// Утилита: смещение координаты на заданное расстояние и угол (в метрах/градусах)
+function offsetLatLng([lat, lng], distanceMeters, bearingDeg) {
+    const R = 6378137; // радиус Земли (м)
+    const dByR = distanceMeters / R;
+    const bearing = (bearingDeg * Math.PI) / 180;
+    const lat1 = (lat * Math.PI) / 180;
+    const lng1 = (lng * Math.PI) / 180;
+    const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(dByR) + Math.cos(lat1) * Math.sin(dByR) * Math.cos(bearing)
+    );
+    const lng2 = lng1 + Math.atan2(
+        Math.sin(bearing) * Math.sin(dByR) * Math.cos(lat1),
+        Math.cos(dByR) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return [(lat2 * 180) / Math.PI, (lng2 * 180) / Math.PI];
+}
+
+function setupPentagramInputs(map, centerLatLng) {
+    const pgConfig = appConfig.pentagram || { vertices: [], radius_m: 150 };
+    const vertices = pgConfig.vertices || [];
+    const radius = pgConfig.radius_m || 150;
+    const placed = new Array(vertices.length).fill(false);
+    const markers = [];
+
+    // Вешаем обработчики ввода на все поля
+    document.querySelectorAll('.pg-input').forEach((input) => {
+        input.addEventListener('input', () => {
+            const vertexIndex = parseInt(input.getAttribute('data-vertex'), 10);
+            const pairInputs = Array.from(document.querySelectorAll(`.pg-input[data-vertex="${vertexIndex}"]`));
+            if (pairInputs.length < 2 || !vertices[vertexIndex]) return;
+
+            const [val1, val2] = pairInputs.map((el) => el.value.trim().toLowerCase());
+            const [word1, word2] = vertices[vertexIndex].words.map((w) => w.toLowerCase());
+
+            if (val1 === word1 && val2 === word2 && !placed[vertexIndex]) {
+                placed[vertexIndex] = true;
+
+                const angle = vertices[vertexIndex].angle_deg || 0;
+                const point = offsetLatLng(centerLatLng, radius, angle);
+
+                const dot = L.circleMarker(point, {
+                    radius: 8,
+                    color: '#FFD700',
+                    fillColor: '#FFD700',
+                    fillOpacity: 0.9,
+                    weight: 3
+                }).addTo(map);
+                markers.push(dot);
+
+                // Соединяем в звезду, когда поставлено хотя бы 3 точки — постепенно
+                drawPentagramIfReady(map, markers);
+            }
+        });
+    });
+}
+
+function drawPentagramIfReady(map, markers) {
+    if (markers.length < 5) return;
+
+    const points = markers.map((m) => m.getLatLng());
+    // Упорядочим как звезду (индексы 0-2-4-1-3-0)
+    const order = [0, 2, 4, 1, 3, 0];
+    const starCoords = order.map((i) => points[i]);
+
+    L.polyline(starCoords, {
+        color: '#DAA520',
+        weight: 3,
+        opacity: 0.9
+    }).addTo(map);
+}
+
+// Экран врат: ввод пар слов → когда все 5 вершин подтверждены, активируем кнопку «ОТКРЫТЬ КАРТУ»
+function setupPentagramGate() {
+    const pgConfig = appConfig.pentagram || { vertices: [], radius_m: 150 };
+    const vertices = pgConfig.vertices || [];
+    const placed = new Array(vertices.length).fill(false);
+    const openBtn = document.getElementById('open-map-btn');
+    if (!openBtn) return;
+
+    document.querySelectorAll('#pentagram-gate .pg-input').forEach((input) => {
+        input.addEventListener('input', () => {
+            const vertexIndex = parseInt(input.getAttribute('data-vertex'), 10);
+            const pairInputs = Array.from(document.querySelectorAll(`#pentagram-gate .pg-input[data-vertex="${vertexIndex}"]`));
+            if (pairInputs.length < 2 || !vertices[vertexIndex]) return;
+
+            const [val1, val2] = pairInputs.map((el) => el.value.trim().toLowerCase());
+            const [word1, word2] = vertices[vertexIndex].words.map((w) => w.toLowerCase());
+
+            const statusEl = document.querySelector(`#pentagram-gate .pg-status[data-vertex="${vertexIndex}"]`);
+
+            if (val1 === word1 && val2 === word2) {
+                placed[vertexIndex] = true;
+                pairInputs.forEach((el) => {
+                    el.style.borderColor = '#B8860B';
+                    el.style.boxShadow = '0 0 12px rgba(218,165,32,0.6)';
+                });
+                if (statusEl) {
+                    statusEl.classList.remove('err');
+                    statusEl.classList.add('ok');
+                }
+            } else if (val1 || val2) {
+                // Если что-то введено, но пара не совпала — показываем ошибку
+                if (statusEl) {
+                    statusEl.classList.remove('ok');
+                    statusEl.classList.add('err');
+                }
+                pairInputs.forEach((el) => {
+                    el.style.borderColor = '#ff6b6b';
+                    el.style.boxShadow = '0 0 10px rgba(255,107,107,0.6)';
+                });
+            } else {
+                // Очищено — возвращаем базовый вид
+                if (statusEl) {
+                    statusEl.classList.remove('ok', 'err');
+                }
+                pairInputs.forEach((el) => {
+                    el.style.borderColor = '#8B7355';
+                    el.style.boxShadow = '';
+                });
+            }
+
+            // Если все 5 подтверждены — разрешаем открыть карту
+            if (placed.every(Boolean)) {
+                openBtn.disabled = false;
+            }
+        });
+    });
+
+    openBtn.addEventListener('click', () => {
+        // Скрываем врата, показываем карту и инициализируем её
+        document.getElementById('pentagram-gate').classList.add('hidden');
+        const secret = document.getElementById('secret-section');
+        secret.classList.remove('hidden');
+        updateCoordinates();
+        setTimeout(() => initTreasureMap(), 200);
+    });
 }
 
 // Запускаем создание образов, логотипов и золотых частиц при загрузке
@@ -434,5 +573,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     createHauntingFigures();
     createFloatingLogos();
     createGoldParticles();
+
+    // Отладочные кнопки для переключения экранов
+    if (appConfig && appConfig.debug) {
+        injectDebugControls();
+    }
 });
+
+function injectDebugControls() {
+    const dbg = document.createElement('div');
+    dbg.style.position = 'fixed';
+    dbg.style.bottom = '20px';
+    dbg.style.right = '20px';
+    dbg.style.zIndex = '20000';
+    dbg.style.display = 'flex';
+    dbg.style.gap = '10px';
+    dbg.style.background = 'rgba(0,0,0,0.6)';
+    dbg.style.border = '2px solid #B8860B';
+    dbg.style.padding = '10px';
+
+    const mkBtn = (label, handler) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.style.cursor = 'pointer';
+        b.style.background = 'linear-gradient(135deg, #B8860B 0%, #8B7355 100%)';
+        b.style.border = '1px solid #DAA520';
+        b.style.color = '#FFD700';
+        b.style.padding = '6px 10px';
+        b.style.fontFamily = 'Cinzel, serif';
+        b.onclick = handler;
+        return b;
+    };
+
+    const btnLock = mkBtn('Экран замка', () => {
+        document.getElementById('lock-screen').style.display = 'flex';
+        document.getElementById('main-container').style.display = 'none';
+    });
+    const btnMain = mkBtn('Главный экран', () => {
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('main-container').style.display = 'block';
+        document.getElementById('secret-section').classList.add('hidden');
+    });
+    const btnSecret = mkBtn('Экран карты', () => {
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('main-container').style.display = 'block';
+        document.getElementById('secret-section').classList.remove('hidden');
+        setTimeout(() => initTreasureMap(), 200);
+    });
+
+    dbg.appendChild(btnLock);
+    dbg.appendChild(btnMain);
+    dbg.appendChild(btnSecret);
+    document.body.appendChild(dbg);
+}
 
