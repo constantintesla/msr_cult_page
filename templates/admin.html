@@ -352,6 +352,11 @@
                     <input type="password" id="admin_password" name="admin_password" autocomplete="new-password">
                     <div class="form-hint">Рекомендуется использовать сложный пароль</div>
                 </div>
+                <div class="form-group">
+                    <label for="universal_cipher">Универсальный шифр (символ неизвестного члена группы):</label>
+                    <input type="text" id="universal_cipher" name="universal_cipher" value="{{ config.universal_cipher if config.universal_cipher else '' }}" placeholder="Например: X9AZ71QF">
+                    <div class="form-hint">Этот шифр подойдёт любому игроку, знающему его. Оставьте пустым, чтобы отключить.</div>
+                </div>
             </div>
             
             <button type="submit" class="submit-btn">⊕ Сохранить изменения ⊕</button>

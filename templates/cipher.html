@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✦ Шифр Испытания ✦</title>
+    <link rel="icon" href="data:">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="noise"></div>
+    <div class="vignette"></div>
+    <div class="container" style="max-width: 800px;">
+        <h1 class="title">Шифр Испытания</h1>
+        <div class="quest-container">
+            <div class="riddle" style="margin-bottom: 20px;">
+                <div class="golden-text" style="font-size:1.2em;">Тайный символ запирает путь.</div>
+                <div>Лишь тот, кто знает истинное имя золота, найдёт следующую дверь.</div>
+            </div>
+            <div class="input-container">
+                <input type="text" id="cipher_input" placeholder="Введи персональный шифр..." autocomplete="off">
+                <button id="cipher_btn">Открыть</button>
+            </div>
+            <div id="cipher_error" class="error-message"></div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        var btn = document.getElementById('cipher_btn');
+        var input = document.getElementById('cipher_input');
+        var err = document.getElementById('cipher_error');
+        btn.addEventListener('click', checkCipher);
+        input.addEventListener('keypress', function(e){ if (e.key === 'Enter') checkCipher(); });
+        function checkCipher(){
+            var v = (input.value || '').trim();
+            if (!v) { err.textContent = 'Пустой шифр не откроет врата.'; return; }
+            fetch('/api/cipher/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: v })
+            }).then(function(r){ return r.json(); }).then(function(d){
+                if (d && d.ok) {
+                    err.textContent = '';
+                    var overlay = document.createElement('div');
+                    overlay.style.position = 'fixed';
+                    overlay.style.inset = '0';
+                    overlay.style.background = 'rgba(218, 165, 32, 0)';
+                    overlay.style.pointerEvents = 'none';
+                    overlay.style.zIndex = '40000';
+                    overlay.style.transition = 'background 1s ease-in';
+                    document.body.appendChild(overlay);
+                    requestAnimationFrame(function(){ overlay.style.background = 'rgba(218, 165, 32, 0.7)'; });
+                    setTimeout(function(){ window.location.href = '/'; }, 1000);
+                } else {
+                    err.textContent = 'Неверно. Слышишь звон металла, но не знаешь имени.';
+                }
+            }).catch(function(){ err.textContent = 'Ошибка связи. Попробуй ещё раз.'; });
+        }
+    });
+    </script>
+</body>
+</html>
+
+

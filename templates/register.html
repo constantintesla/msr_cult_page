@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✦ Ветовская ячейка Руки Гроха ✦</title>
+    <link rel="icon" href="data:">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="noise"></div>
+    <div class="vignette"></div>
+
+    <div class="container" style="max-width: 700px;">
+        <h1 class="title temple-title">Ветовская ячейка Руки Гроха</h1>
+        <div class="quest-container">
+            {% if success %}
+            <div class="riddle" style="margin-bottom:20px;">
+                <div class="golden-text" style="font-size:1.2em;">Регистрация успешна, {{ login }}.</div>
+                <div style="margin-top:10px;">Ты принят в Ветовскую ячейку Руки Гроха.</div>
+            </div>
+            <div class="riddle" style="margin-bottom:20px;">
+                <div>Твой персональный шифр:</div>
+                <div class="golden-text" style="font-size:1.6em; letter-spacing:2px; margin-top:6px;">{{ cipher }}</div>
+                <div style="margin-top:8px; color:#C19A6B;">Запомни этот знак — без него Врата Шифра останутся немы.</div>
+                <div style="margin-top:10px">Число, что резонирует с золотом в сердцах адептов: <span class="golden-text" style="font-size:1.3em;">{{ lock_code }}</span></div>
+            </div>
+            <div style="text-align:center;">
+                <button id="btn-open-gates" class="unlock-btn">Перейти к Шифру</button>
+            </div>
+            {% else %}
+            <div class="riddle" style="margin-bottom:20px;">
+                <div class="golden-text" style="font-size:1.2em;">Вступление в Ветовскую ячейку</div>
+                <div>Заполни форму ниже, да будет золото свидетельством.</div>
+            </div>
+            {% if errors %}
+            <div class="error-message" style="text-align:left;">
+                {% for e in errors %}
+                    <div>• {{ e }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <form method="POST" action="{{ url_for('vetovskaya_register') }}" class="admin-form" style="gap:18px;">
+                <div class="form-group">
+                    <label for="email">Почта</label>
+                    <input type="email" id="email" name="email" value="{{ email or '' }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="login">Логин</label>
+                    <input type="text" id="login" name="login" value="{{ login or '' }}" minlength="3" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" name="password" minlength="6" required autocomplete="new-password">
+                </div>
+                <div style="text-align:center;">
+                    <button class="unlock-btn" type="submit">Зарегистрироваться</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var btnOpen = document.getElementById('btn-open-gates');
+        if (btnOpen) {
+            // Переход только через кнопку на /cipher
+            btnOpen.addEventListener('click', function(){
+                var overlay = document.createElement('div');
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.background = 'rgba(218, 165, 32, 0)';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.zIndex = '40000';
+                overlay.style.transition = 'background 1s ease-in';
+                document.body.appendChild(overlay);
+                requestAnimationFrame(function(){ overlay.style.background = 'rgba(218, 165, 32, 0.7)'; });
+                setTimeout(function(){ window.location.href = '{{ url_for('cipher_page') }}'; }, 1000);
+            });
+        }
+    });
+    </script>
+</body>
+</html>
+
+

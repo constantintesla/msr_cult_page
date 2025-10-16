@@ -63,8 +63,8 @@ function checkCode() {
         lockScreen.style.animation = 'fadeOut 1.5s ease-out';
         setTimeout(() => {
             lockScreen.style.display = 'none';
+            // Просто показываем контейнер, а fade-in назначается сервером при рендере (см. unlocked)
             mainContainer.style.display = 'block';
-            mainContainer.style.animation = 'fadeIn 1.5s ease-in';
         }, 1500);
     } else {
         // Неправильный код
@@ -212,6 +212,7 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
 
 // Создаем жуткие образы на фоне
 function createHauntingFigures() {
@@ -558,40 +559,61 @@ function initTreasureMapWithDnD() {
     const pairSymbols = ['✦','✪','☸','☬','☯'];
     const outerColors = ['#ff2b2b','#ff3838','#e61e1e','#ff4d4d','#d91c1c'];
     const innerColors = ['#111111','#222222','#000000','#2b2b2b','#1a1a1a'];
-
-    for (let i = 0; i < 5; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'dnd-slot';
-        slot.dataset.index = String(i);
-        slot.dataset.type = 'outer';
-        const pos = approxOuter[i];
-        slot.style.left = pos.left;
-        slot.style.top = pos.top;
-        const btn = document.createElement('button');
-        btn.className = 'slot-btn';
-        btn.textContent = pairSymbols[i % pairSymbols.length];
-        btn.style.color = outerColors[i % outerColors.length];
-        btn.setAttribute('aria-label', `Вершина ${i+1}`);
-        btn.onclick = () => promptWordForSlot(i, 'outer', vertices);
-        slot.appendChild(btn);
-        slotsLayer.appendChild(slot);
-    }
-    for (let i = 0; i < 5; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'dnd-slot';
-        slot.dataset.index = String(i);
-        slot.dataset.type = 'inner';
-        const pos = approxInner[i];
-        slot.style.left = pos.left;
-        slot.style.top = pos.top;
-        const btn = document.createElement('button');
-        btn.className = 'slot-btn';
-        btn.textContent = pairSymbols[i % pairSymbols.length];
-        btn.style.color = innerColors[i % innerColors.length];
-        btn.setAttribute('aria-label', `Внутренняя вершина ${i+1}`);
-        btn.onclick = () => promptWordForSlot(i, 'inner', vertices);
-        slot.appendChild(btn);
-        slotsLayer.appendChild(slot);
+    
+    // Проверяем тип шифра для показа номеров
+    fetch('/api/cipher/type')
+        .then(response => response.json())
+        .then(data => {
+            const showNumbers = data.cipher_type && data.cipher_type !== 'universal';
+            createSlotsWithNumbers(showNumbers);
+        })
+        .catch((error) => {
+            console.error('Error fetching cipher type:', error);
+            createSlotsWithNumbers(false);
+        });
+    
+    function createSlotsWithNumbers(showNumbers) {
+        // Очищаем слоты перед созданием новых
+        slotsLayer.innerHTML = '';
+        
+        for (let i = 0; i < 5; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'dnd-slot';
+            slot.dataset.index = String(i);
+            slot.dataset.type = 'outer';
+            const pos = approxOuter[i];
+            slot.style.left = pos.left;
+            slot.style.top = pos.top;
+            const btn = document.createElement('button');
+            btn.className = 'slot-btn';
+            // Показываем номер для не-универсальных шифров, иначе символ
+            const displayText = showNumbers ? (i + 1) : pairSymbols[i % pairSymbols.length];
+            btn.textContent = displayText;
+            btn.style.color = outerColors[i % outerColors.length];
+            btn.setAttribute('aria-label', `Вершина ${i+1}`);
+            btn.onclick = () => promptWordForSlot(i, 'outer', vertices);
+            slot.appendChild(btn);
+            slotsLayer.appendChild(slot);
+        }
+        for (let i = 0; i < 5; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'dnd-slot';
+            slot.dataset.index = String(i);
+            slot.dataset.type = 'inner';
+            const pos = approxInner[i];
+            slot.style.left = pos.left;
+            slot.style.top = pos.top;
+            const btn = document.createElement('button');
+            btn.className = 'slot-btn';
+            // Показываем номер для не-универсальных шифров, иначе символ
+            const displayText = showNumbers ? (i + 1) : pairSymbols[i % pairSymbols.length];
+            btn.textContent = displayText;
+            btn.style.color = innerColors[i % innerColors.length];
+            btn.setAttribute('aria-label', `Внутренняя вершина ${i+1}`);
+            btn.onclick = () => promptWordForSlot(i, 'inner', vertices);
+            slot.appendChild(btn);
+            slotsLayer.appendChild(slot);
+        }
     }
 
     // Банк слов не используем в кнопочном варианте
@@ -921,6 +943,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (editor) {
         initPentagramEditor();
     }
+    // После /cipher показываем золотую дымку, затем нормальный поток
+    const mainContainer = document.getElementById('main-container');
+    if (mainContainer) {
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(218, 165, 32, 0.7)';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '40000';
+        overlay.style.transition = 'background 0.9s ease-out';
+        document.body.appendChild(overlay);
+        
+        // Плавно убираем дымку, оставляя нормальный поток (замок → коан → врата)
+        requestAnimationFrame(() => {
+            overlay.style.background = 'rgba(218, 165, 32, 0)';
+        });
+        setTimeout(() => overlay.remove(), 950);
+    }
 });
 
 function injectDebugControls() {
@@ -984,7 +1024,10 @@ function initPentagramEditor() {
     const outerMarkers = [];
     const innerMarkers = [];
     let mode = 'center';
-    const makeDotIcon = (color) => L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border:2px solid #000;border-radius:50%;background:${color}"></div>` });
+    const makeDotIcon = (color, number = '') => L.divIcon({ 
+        className: '', 
+        html: `<div style="position:relative; width:20px;height:20px;border:2px solid #000;border-radius:50%;background:${color}; display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;color:#fff;text-shadow:1px 1px 1px #000;">${number}</div>` 
+    });
     let centerMarker = L.marker(center, { draggable: true, icon: L.divIcon({ className:'', html:`<div style="width:16px;height:16px;border:2px solid #B8860B;border-radius:50%;background:rgba(255,215,0,0.4);"></div>` }) }).addTo(map);
 
     const btnCenter = document.getElementById('btn-editor-center');
@@ -1013,8 +1056,8 @@ function initPentagramEditor() {
                 points.push({ lat: parseFloat(latField.value), lng: parseFloat(lngField.value) });
             }
         }
-        points.slice(0,5).forEach(p => outerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#ff2b2b') }).addTo(map)));
-        points.slice(5,10).forEach(p => innerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#111') }).addTo(map)));
+        points.slice(0,5).forEach((p, i) => outerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#ff2b2b', i+1) }).addTo(map)));
+        points.slice(5,10).forEach((p, i) => innerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#111', i+1) }).addTo(map)));
     };
     if (btnCalc) btnCalc.onclick = () => {
         // Рассчитать точки по текущим углам/радиусу/центру
@@ -1040,8 +1083,8 @@ function initPentagramEditor() {
         for (let i = 0; i < 5; i++) {
             const v = vertices[i];
             const ang = (v && typeof v.angle_deg === 'number') ? v.angle_deg : defaultAngles[i];
-            outerMarkers.push(L.marker(toLatLng(ang, radius), { draggable: true, icon: makeDotIcon('#ff2b2b') }).addTo(map));
-            innerMarkers.push(L.marker(toLatLng(ang + 36, radius * innerFactor), { draggable: true, icon: makeDotIcon('#111') }).addTo(map));
+            outerMarkers.push(L.marker(toLatLng(ang, radius), { draggable: true, icon: makeDotIcon('#ff2b2b', i+1) }).addTo(map));
+            innerMarkers.push(L.marker(toLatLng(ang + 36, radius * innerFactor), { draggable: true, icon: makeDotIcon('#111', i+1) }).addTo(map));
         }
     };
     if (btnApply) btnApply.onclick = () => {
@@ -1068,7 +1111,8 @@ function initPentagramEditor() {
 
     const addMarker = (latlng, type) => {
         const color = (type === 'outer') ? '#ff2b2b' : '#111';
-        const marker = L.marker(latlng, { draggable: true, icon: makeDotIcon(color) });
+        const number = (type === 'outer') ? (outerMarkers.length + 1) : (innerMarkers.length + 1);
+        const marker = L.marker(latlng, { draggable: true, icon: makeDotIcon(color, number) });
         marker.addTo(map);
         if (type === 'outer') outerMarkers.push(marker); else innerMarkers.push(marker);
     };

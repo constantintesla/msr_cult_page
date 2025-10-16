@@ -1,4 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response, send_file, flash
+import random
+import string
+from datetime import datetime
 from werkzeug.utils import secure_filename
 import json
 import os
@@ -17,6 +20,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
 CONFIG_FILE = 'config.json'
+USERS_FILE = 'users.json'
 
 # Настройки по умолчанию
 DEFAULT_CONFIG = {
@@ -33,7 +37,8 @@ DEFAULT_CONFIG = {
     'admin': {
         'username': 'admin',
         'password': 'groh2024'  # Измените пароль!
-    }
+    },
+    'universal_cipher': '12345678' # Новый параметр
 }
 
 def load_config():
@@ -51,6 +56,24 @@ def save_config(config):
         # ВАЖНО: первым идет объект, вторым — файловый дескриптор
         json.dump(config, f, indent=4, ensure_ascii=False)
 
+def load_users():
+    """Загрузить базу пользователей"""
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+                return []
+        except Exception:
+            return []
+    return []
+
+def save_users(users):
+    """Сохранить базу пользователей"""
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users, f, indent=4, ensure_ascii=False)
+
 def login_required(f):
     """Декоратор для защиты админских страниц"""
     @wraps(f)
@@ -63,6 +86,9 @@ def login_required(f):
 @app.route('/')
 def index():
     """Главная страница квеста"""
+    # Требуем подтверждение персонального шифра перед Вратами
+    if not session.get('cipher_verified'):
+        return redirect(url_for('cipher_page'))
     return render_template('index.html')
 
 @app.route('/favicon.ico')
@@ -70,11 +96,102 @@ def favicon():
     """Возвращаем пустой ответ, чтобы не было 404 для favicon."""
     return make_response(('', 204))
 
+
 @app.route('/temple')
 def temple():
     """Финальная страница ✦ Храм Благополучия ✦"""
     config = load_config()
     return render_template('temple.html', config=config)
+
+@app.route('/vetovskaya', methods=['GET', 'POST'])
+def vetovskaya_register():
+    """Секретная страница регистрации в Ветовской ячейке Руки Гроха."""
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip()
+        login = (request.form.get('login') or '').strip()
+        password = (request.form.get('password') or '').strip()
+
+        errors = []
+        if not email or '@' not in email:
+            errors.append('Укажите корректную почту')
+        if not login or len(login) < 3:
+            errors.append('Логин должен быть не короче 3 символов')
+        if not password or len(password) < 6:
+            errors.append('Пароль должен быть не короче 6 символов')
+
+        if errors:
+            return render_template('register.html', errors=errors, success=False, email=email, login=login)
+
+        # Проверка уникальности email/login
+        users = load_users()
+        lower_emails = {u.get('email', '').lower() for u in users}
+        lower_logins = {u.get('login', '').lower() for u in users}
+        if email.lower() in lower_emails:
+            errors.append('Игрок с такой почтой уже зарегистрирован')
+        if login.lower() in lower_logins:
+            errors.append('Игрок с таким логином уже зарегистрирован')
+        if errors:
+            return render_template('register.html', errors=errors, success=False, email=email, login=login)
+
+        # Генерируем персональный шифр для игрока и сохраняем в сессию/БД
+        cipher_code = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        session['personal_cipher'] = cipher_code
+        lock_code = load_config().get('lock_code', '0000')
+        users.append({
+            'email': email,
+            'login': login,
+            'cipher': cipher_code,
+            'created_at': datetime.utcnow().isoformat() + 'Z'
+        })
+        save_users(users)
+        return render_template('register.html', success=True, email=email, login=login, cipher=cipher_code, lock_code=lock_code)
+
+    return render_template('register.html', success=False)
+
+@app.route('/cipher')
+def cipher_page():
+    """Страница с шифром (после регистрации)."""
+    return render_template('cipher.html')
+
+@app.route('/api/cipher/verify', methods=['POST'])
+def api_cipher_verify():
+    """Проверка персонального шифра из сессии."""
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+    code = (data.get('code') or '').strip()
+    expected = session.get('personal_cipher', '')
+    ok = False
+    cipher_type = 'unknown'  # По умолчанию неизвестный тип
+    
+    if code:
+        # 1) Совпадение с шифром в сессии
+        if expected and code.lower() == expected.lower():
+            ok = True
+            cipher_type = 'personal'
+        else:
+            # 2) Поиск среди сохранённых пользователей
+            users = load_users()
+            for u in users:
+                uc = (u.get('cipher') or '').strip()
+                if uc and uc.lower() == code.lower():
+                    ok = True
+                    cipher_type = 'registered'
+                    break
+            # 3) Универсальный шифр из конфигурации
+            if not ok:
+                cfg = load_config()
+                uni = (cfg.get('universal_cipher') or '').strip()
+                if uni and uni.lower() == code.lower():
+                    ok = True
+                    cipher_type = 'universal'
+    
+    if ok:
+        session['cipher_verified'] = True
+        session['cipher_type'] = cipher_type
+    
+    return jsonify({'ok': ok, 'cipher_type': cipher_type})
 
 @app.route('/api/config')
 def get_config():
@@ -88,6 +205,12 @@ def get_config():
         'temple': config.get('temple', {}),
         'debug': config.get('debug', False)
     })
+
+@app.route('/api/cipher/type')
+def get_cipher_type():
+    """API для получения типа шифра пользователя"""
+    cipher_type = session.get('cipher_type', 'unknown')
+    return jsonify({'cipher_type': cipher_type})
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -238,6 +361,13 @@ def admin_update():
     if new_password:
         config['admin']['password'] = new_password
     
+    # Обновляем универсальный шифр
+    universal_cipher = request.form.get('universal_cipher', '').strip()
+    if universal_cipher:
+        config['universal_cipher'] = universal_cipher
+    else:
+        config.pop('universal_cipher', None)
+
     save_config(config)
     return redirect(url_for('admin_panel'))
 
