@@ -392,7 +392,7 @@ function initTreasureMap() {
 
     const map = L.map('real-map', {
         center: [targetLat, targetLng],
-        zoom: 16,
+        zoom: 15,
         zoomControl: false,
         attributionControl: false
     });
@@ -491,7 +491,7 @@ function initTreasureMapWithDnD() {
         const rect = container.getBoundingClientRect();
         const cx = rect.width / 2;
         const cy = rect.height / 2;
-        const outerRadius = Math.min(rect.width, rect.height) * 0.45; // 45% от меньшей стороны
+        const outerRadius = Math.min(rect.width, rect.height) * 0.38; // чуть меньше, чтобы влезало
         const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
         const innerRadius = outerRadius * innerFactor;
 
@@ -560,21 +560,44 @@ function initTreasureMapWithDnD() {
     const outerColors = ['#ff2b2b','#ff3838','#e61e1e','#ff4d4d','#d91c1c'];
     const innerColors = ['#111111','#222222','#000000','#2b2b2b','#1a1a1a'];
     
-    // Проверяем тип шифра для показа номеров
+    // Проверяем тип шифра для показа номеров и выбора режима (последовательный для зарегистрированных)
     fetch('/api/cipher/type')
         .then(response => response.json())
-        .then(data => {
+        .then(async (data) => {
             const showNumbers = data.cipher_type && data.cipher_type !== 'universal';
-            createSlotsWithNumbers(showNumbers);
+            const sequentialMode = data.cipher_type === 'registered';
+            let initialStep = null;
+            if (sequentialMode) {
+                try {
+                    const pr = await fetch('/api/progress');
+                    if (pr.ok) {
+                        const pj = await pr.json();
+                        if (pj && pj.ok && typeof pj.step === 'number') initialStep = pj.step;
+                    }
+                } catch (e) {
+                    console.error('Error loading progress', e);
+                }
+            }
+            createSlotsWithNumbers(showNumbers, sequentialMode, initialStep);
         })
         .catch((error) => {
             console.error('Error fetching cipher type:', error);
-            createSlotsWithNumbers(false);
+            createSlotsWithNumbers(false, false);
         });
     
-    function createSlotsWithNumbers(showNumbers) {
+    function createSlotsWithNumbers(showNumbers, sequentialMode, initialStep) {
         // Очищаем слоты перед созданием новых
         slotsLayer.innerHTML = '';
+        // Состояние последовательного режима: шаг 0..9 (0-4 внешние, 5-9 внутренние)
+        if (sequentialMode) {
+            if (typeof initialStep === 'number' && initialStep >= 0 && initialStep <= 10) {
+                window.__seqStep = Math.min(initialStep, 10);
+            } else {
+                window.__seqStep = 0;
+            }
+        } else {
+            window.__seqStep = null;
+        }
         
         for (let i = 0; i < 5; i++) {
             const slot = document.createElement('div');
@@ -591,7 +614,13 @@ function initTreasureMapWithDnD() {
             btn.textContent = displayText;
             btn.style.color = outerColors[i % outerColors.length];
             btn.setAttribute('aria-label', `Вершина ${i+1}`);
-            btn.onclick = () => promptWordForSlot(i, 'outer', vertices);
+            btn.onclick = () => {
+                if (sequentialMode && window.__seqStep !== null) {
+                    // Разрешаем клик только на текущей кнопке
+                    if (window.__seqStep !== i) return;
+                }
+                promptWordForSlot(i, 'outer', vertices);
+            };
             slot.appendChild(btn);
             slotsLayer.appendChild(slot);
         }
@@ -610,10 +639,111 @@ function initTreasureMapWithDnD() {
             btn.textContent = displayText;
             btn.style.color = innerColors[i % innerColors.length];
             btn.setAttribute('aria-label', `Внутренняя вершина ${i+1}`);
-            btn.onclick = () => promptWordForSlot(i, 'inner', vertices);
+            btn.onclick = () => {
+                if (sequentialMode && window.__seqStep !== null) {
+                    // Внутренние начинаются с шага 5
+                    if (window.__seqStep !== (i + 5)) return;
+                }
+                promptWordForSlot(i, 'inner', vertices);
+            };
             slot.appendChild(btn);
             slotsLayer.appendChild(slot);
         }
+
+        // В последовательном режиме показываем только текущую кнопку, остальные скрываем
+        if (sequentialMode && window.__seqStep !== null) {
+            if (typeof window.updateSequentialVisibility === 'function') {
+                window.updateSequentialVisibility();
+            }
+            // Показать координаты текущей активной точки
+            if (typeof window.updateCurrentPointCoordinates === 'function') {
+                window.updateCurrentPointCoordinates(vertices);
+            }
+            // Отрисовать уже решённые точки (если step>0)
+            try {
+                const solvedCount = Math.min(window.__seqStep, 10);
+                for (let s = 0; s < solvedCount; s++) {
+                    const isOuter = s < 5;
+                    const idx = isOuter ? s : (s - 5);
+                    const el = document.querySelector(`.dnd-slot[data-index="${idx}"][data-type="${isOuter ? 'outer' : 'inner'}"]`);
+                    if (el && !el.classList.contains('ok')) {
+                        const btn = el.querySelector('button');
+                        if (btn) btn.classList.add('solved');
+                        el.classList.add('ok');
+                        placeVertexAndConnect(idx, vertices, isOuter ? 'outer' : 'inner');
+                    }
+                }
+            } catch (e) {
+                console.error('Error applying solved vertices', e);
+            }
+        }
+    }
+    
+    window.updateSequentialVisibility = function() {
+        const step = window.__seqStep;
+        if (step === null || step === undefined) return;
+        // Скрываем все, но сохраняем видимыми уже решённые
+        const allSlots = Array.from(document.querySelectorAll('.dnd-slot'));
+        allSlots.forEach(s => {
+            const btn = s.querySelector('button');
+            if (s.classList.contains('ok')) {
+                // Решённые остаются видимыми, кнопка выключена
+                s.style.visibility = 'visible';
+                if (btn) btn.disabled = true;
+            } else {
+                if (btn) btn.disabled = true;
+                s.style.visibility = 'hidden';
+            }
+        });
+        // Показываем только текущий
+        if (step < 5) {
+            const sel = `.dnd-slot[data-index="${step}"][data-type="outer"]`;
+            const curr = document.querySelector(sel);
+            if (curr) {
+                curr.style.visibility = 'visible';
+                const btn = curr.querySelector('button');
+                if (btn) btn.disabled = false;
+            }
+        } else {
+            const innerIdx = step - 5;
+            const sel = `.dnd-slot[data-index="${innerIdx}"][data-type="inner"]`;
+            const curr = document.querySelector(sel);
+            if (curr) {
+                curr.style.visibility = 'visible';
+                const btn = curr.querySelector('button');
+                if (btn) btn.disabled = false;
+            }
+        }
+    }
+
+    window.updateCurrentPointCoordinates = function(vertices) {
+        const step = window.__seqStep;
+        if (step === null || step === undefined) return;
+        const mapCoords = document.getElementById('map-coordinates');
+        if (!mapCoords) return;
+        // Определим lat/lng текущей точки (учитываем dnd_points или вычисление по углам)
+        const isOuter = step < 5;
+        const idx = isOuter ? step : (step - 5);
+        const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+        const baseRadius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
+        const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
+        const dnd = (appConfig.pentagram && Array.isArray(appConfig.pentagram.dnd_points) && appConfig.pentagram.dnd_points.length >= 10) ? appConfig.pentagram.dnd_points : null;
+        let lat, lng;
+        if (dnd) {
+            const p = isOuter ? dnd[idx] : dnd[idx + 5];
+            lat = p.lat; lng = p.lng;
+        } else {
+            const defaultAngles = [-90, -18, 54, 126, 198];
+            const v = vertices[idx] || {};
+            const useDefault = (!vertices || vertices.length < 5) || vertices.every(x => !x || x.angle_deg === undefined || Number(x.angle_deg) === 0);
+            const baseAng = useDefault ? defaultAngles[idx] : (v.angle_deg || 0);
+            const angle = baseAng + (isOuter ? 0 : 36);
+            const r = isOuter ? baseRadius : Math.max(10, Math.floor(baseRadius * innerFactor));
+            const pt = offsetLatLng(center, r, angle);
+            lat = pt[0]; lng = pt[1];
+        }
+        mapCoords.classList.remove('hidden');
+        mapCoords.innerHTML = `📍 Текущая точка: <span class="coords-highlight">${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
     }
 
     // Банк слов не используем в кнопочном варианте
@@ -660,7 +790,46 @@ function promptWordForSlot(idx, type, vertices) {
             slot.classList.add('ok');
         }
         placeVertexAndConnect(idx, vertices, type);
-        checkAllVerticesClosed(vertices);
+        // Если активен последовательный режим — открываем следующую точку
+        if (window.__seqStep !== null && window.__seqStep !== undefined) {
+            if (type === 'outer') {
+                // ожидаем idx == __seqStep (0..4)
+                if (window.__seqStep === idx) {
+                    window.__seqStep = window.__seqStep + 1; // следующий шаг
+                }
+            } else {
+                // внутренние: шаги 5..9
+                if (window.__seqStep === (idx + 5)) {
+                    window.__seqStep = window.__seqStep + 1;
+                }
+            }
+            if (window.__seqStep <= 9) {
+                if (typeof window.updateSequentialVisibility === 'function') {
+                    window.updateSequentialVisibility();
+                }
+                if (typeof window.updateCurrentPointCoordinates === 'function') {
+                    window.updateCurrentPointCoordinates(vertices);
+                }
+                // Сохраняем прогресс на сервере
+                try {
+                    fetch('/api/progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ step: window.__seqStep })
+                    });
+                } catch (e) { /* ignore */ }
+            } else {
+                // все 10 открыты → переход
+                if (!__finalTransitionTriggered) {
+                    __finalTransitionTriggered = true;
+                    setTimeout(() => {
+                        fadeToGoldThen(() => { window.location.href = '/temple'; });
+                    }, 800);
+                }
+            }
+        } else {
+            checkAllVerticesClosed(vertices);
+        }
     } else {
         alert('Неверно');
     }

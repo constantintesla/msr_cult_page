@@ -166,32 +166,76 @@ def api_cipher_verify():
     cipher_type = 'unknown'  # По умолчанию неизвестный тип
     
     if code:
-        # 1) Совпадение с шифром в сессии
-        if expected and code.lower() == expected.lower():
+        # 1) Поиск среди сохранённых пользователей — приоритетно, чтобы фиксировать registered
+        users = load_users()
+        for u in users:
+            uc = (u.get('cipher') or '').strip()
+            if uc and uc.lower() == code.lower():
+                ok = True
+                cipher_type = 'registered'
+                break
+        # 2) Совпадение с шифром в сессии (если не нашли в users)
+        if not ok and expected and code.lower() == expected.lower():
             ok = True
             cipher_type = 'personal'
-        else:
-            # 2) Поиск среди сохранённых пользователей
-            users = load_users()
-            for u in users:
-                uc = (u.get('cipher') or '').strip()
-                if uc and uc.lower() == code.lower():
-                    ok = True
-                    cipher_type = 'registered'
-                    break
-            # 3) Универсальный шифр из конфигурации
-            if not ok:
-                cfg = load_config()
-                uni = (cfg.get('universal_cipher') or '').strip()
-                if uni and uni.lower() == code.lower():
-                    ok = True
-                    cipher_type = 'universal'
+        # 3) Универсальный шифр из конфигурации
+        if not ok:
+            cfg = load_config()
+            uni = (cfg.get('universal_cipher') or '').strip()
+            if uni and uni.lower() == code.lower():
+                ok = True
+                cipher_type = 'universal'
     
     if ok:
         session['cipher_verified'] = True
         session['cipher_type'] = cipher_type
+        # Сохраним текущий проверенный код в сессию для связывания прогресса
+        session['cipher_code'] = code
     
     return jsonify({'ok': ok, 'cipher_type': cipher_type})
+
+@app.route('/api/progress', methods=['GET', 'POST'])
+def api_progress():
+    """Получение/сохранение прогресса прохождения карты для текущего шифра."""
+    # Определяем активный шифр из сессии
+    cipher = (session.get('cipher_code') or '').strip()
+    if not cipher:
+        # fallback: если есть в users — дадим прочитать по type=registered, но лучше вернём пусто
+        return jsonify({'ok': False, 'error': 'no_cipher'}), 400
+    users = load_users()
+    # Найдём пользователя по шифру
+    user = None
+    for u in users:
+        if (u.get('cipher') or '').strip().lower() == cipher.lower():
+            user = u
+            break
+    if request.method == 'GET':
+        step = 0
+        if user:
+            try:
+                step = int(user.get('progress_step', 0))
+            except Exception:
+                step = 0
+        return jsonify({'ok': True, 'step': step})
+    else:
+        # POST
+        try:
+            data = request.get_json(silent=True) or {}
+        except Exception:
+            data = {}
+        try:
+            step = int(data.get('step', 0))
+            if step < 0: step = 0
+            if step > 10: step = 10
+        except Exception:
+            return jsonify({'ok': False, 'error': 'bad_step'}), 400
+        if user:
+            user['progress_step'] = step
+            save_users(users)
+            return jsonify({'ok': True, 'step': step})
+        else:
+            # Если пользователя нет в базе (например personal/universal), сохранять нечего
+            return jsonify({'ok': False, 'error': 'user_not_found'}), 404
 
 @app.route('/api/config')
 def get_config():

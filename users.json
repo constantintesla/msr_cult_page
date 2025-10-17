@@ -1,1 +1,20 @@
-
+[
+    {
+        "email": "!1@1",
+        "login": "12312",
+        "cipher": "IVZIUOYK",
+        "created_at": "2025-10-17T07:22:14.772919Z"
+    },
+    {
+        "email": "kostenkov.va@dvfu.ru",
+        "login": "dubsaider",
+        "cipher": "9Y27CR4X",
+        "created_at": "2025-10-17T07:36:14.759188Z"
+    },
+    {
+        "email": "1@33",
+        "login": "123123",
+        "cipher": "11J1GPJR",
+        "created_at": "2025-10-17T07:40:39.775615Z"
+    }
+]
