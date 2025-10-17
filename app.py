@@ -38,7 +38,8 @@ DEFAULT_CONFIG = {
         'username': 'admin',
         'password': 'groh2024'  # Измените пароль!
     },
-    'universal_cipher': '12345678' # Новый параметр
+    'universal_cipher': '12345678', # Новый параметр
+    'point_order': [] # Порядок прохождения точек для зарегистрированных пользователей
 }
 
 def load_config():
@@ -247,6 +248,7 @@ def get_config():
         'coordinates': config['coordinates'],
         'pentagram': config.get('pentagram', {}),
         'temple': config.get('temple', {}),
+        'point_order': config.get('point_order', []),
         'debug': config.get('debug', False)
     })
 
@@ -255,6 +257,35 @@ def get_cipher_type():
     """API для получения типа шифра пользователя"""
     cipher_type = session.get('cipher_type', 'unknown')
     return jsonify({'cipher_type': cipher_type})
+
+@app.route('/api/admin/point-order', methods=['GET', 'POST'])
+@login_required
+def api_point_order():
+    """API для получения и сохранения порядка точек"""
+    config = load_config()
+    
+    if request.method == 'GET':
+        return jsonify({'ok': True, 'order': config.get('point_order', [])})
+    
+    # POST - сохранение порядка
+    try:
+        data = request.get_json(silent=True) or {}
+        order = data.get('order', [])
+        
+        # Валидация: должен быть список из 10 элементов (0-9)
+        if not isinstance(order, list) or len(order) != 10:
+            return jsonify({'ok': False, 'error': 'invalid_order'}), 400
+        
+        # Проверяем, что все числа от 0 до 9 присутствуют ровно один раз
+        if sorted(order) != list(range(10)):
+            return jsonify({'ok': False, 'error': 'invalid_order_sequence'}), 400
+        
+        config['point_order'] = order
+        save_config(config)
+        return jsonify({'ok': True, 'order': order})
+        
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -323,18 +354,35 @@ def admin_update():
     except ValueError:
         radius_m = config.get('pentagram', {}).get('radius_m', 180)
     vertices = []
-    for i in range(5):
-        # Читаем слова из новых полей: outer/inner
-        w1 = request.form.get(f'pg_word_outer_{i}', '').strip()
-        w2 = request.form.get(f'pg_word_inner_{i}', '').strip()
+    
+    # Получаем порядок точек (по умолчанию стандартный)
+    point_order = config.get('point_order', [0,1,2,3,4,5,6,7,8,9])
+    if len(point_order) != 10:
+        point_order = [0,1,2,3,4,5,6,7,8,9]
+    
+    # Обрабатываем слова в порядке прохождения
+    for order_index in range(10):
+        word = request.form.get(f'pg_word_{order_index}', '').strip()
+        point_index = point_order[order_index]
+        is_outer = point_index < 5
+        vertex_index = point_index if is_outer else (point_index - 5)
+        word_index = 0 if is_outer else 1
+        
+        # Убеждаемся, что у нас есть достаточно вершин
+        while len(vertices) <= vertex_index:
+            vertices.append({'words': ['', ''], 'angle_deg': 0})
+        
+        # Устанавливаем слово в правильную позицию
+        if len(vertices[vertex_index]['words']) <= word_index:
+            vertices[vertex_index]['words'].extend([''] * (word_index + 1 - len(vertices[vertex_index]['words'])))
+        vertices[vertex_index]['words'][word_index] = word
+        
+        # Устанавливаем угол, если он есть
         try:
-            angle = float(request.form.get(f'pg_angle_{i}', '0'))
+            angle = float(request.form.get(f'pg_angle_{vertex_index}', '0'))
+            vertices[vertex_index]['angle_deg'] = angle
         except ValueError:
-            angle = 0
-        vertices.append({
-            'words': [w1, w2],
-            'angle_deg': angle
-        })
+            pass
     config['pentagram'] = {
         'radius_m': radius_m,
         'vertices': vertices

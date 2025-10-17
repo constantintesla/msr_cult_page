@@ -588,6 +588,11 @@ function initTreasureMapWithDnD() {
     function createSlotsWithNumbers(showNumbers, sequentialMode, initialStep) {
         // Очищаем слоты перед созданием новых
         slotsLayer.innerHTML = '';
+        
+        // Получаем настроенный порядок точек
+        const pointOrder = appConfig.point_order || [];
+        const hasCustomOrder = pointOrder.length === 10;
+        
         // Состояние последовательного режима: шаг 0..9 (0-4 внешние, 5-9 внутренние)
         if (sequentialMode) {
             if (typeof initialStep === 'number' && initialStep >= 0 && initialStep <= 10) {
@@ -599,53 +604,62 @@ function initTreasureMapWithDnD() {
             window.__seqStep = null;
         }
         
-        for (let i = 0; i < 5; i++) {
+        // Создаем слоты в соответствии с настроенным порядком или стандартным
+        const slotsToCreate = hasCustomOrder ? pointOrder : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        
+        for (let orderIndex = 0; orderIndex < slotsToCreate.length; orderIndex++) {
+            const pointIndex = slotsToCreate[orderIndex];
+            const isOuter = pointIndex < 5;
+            const slotIndex = isOuter ? pointIndex : (pointIndex - 5);
+            
             const slot = document.createElement('div');
             slot.className = 'dnd-slot';
-            slot.dataset.index = String(i);
-            slot.dataset.type = 'outer';
-            const pos = approxOuter[i];
+            slot.dataset.index = String(slotIndex);
+            slot.dataset.type = isOuter ? 'outer' : 'inner';
+            slot.dataset.pointIndex = String(pointIndex);
+            slot.dataset.orderIndex = String(orderIndex);
+            
+            const pos = isOuter ? approxOuter[slotIndex] : approxInner[slotIndex];
             slot.style.left = pos.left;
             slot.style.top = pos.top;
+            
             const btn = document.createElement('button');
             btn.className = 'slot-btn';
+            
             // Показываем номер для не-универсальных шифров, иначе символ
-            const displayText = showNumbers ? (i + 1) : pairSymbols[i % pairSymbols.length];
+            let displayText;
+            if (showNumbers) {
+                if (hasCustomOrder) {
+                    displayText = orderIndex + 1; // Номер в порядке прохождения
+                } else {
+                    displayText = pointIndex + 1; // Стандартный номер
+                }
+            } else {
+                displayText = pairSymbols[slotIndex % pairSymbols.length];
+            }
+            
             btn.textContent = displayText;
-            btn.style.color = outerColors[i % outerColors.length];
-            btn.setAttribute('aria-label', `Вершина ${i+1}`);
+            btn.style.color = isOuter ? outerColors[slotIndex % outerColors.length] : innerColors[slotIndex % innerColors.length];
+            btn.setAttribute('aria-label', `${isOuter ? 'Вершина' : 'Внутренняя вершина'} ${slotIndex + 1}`);
+            
             btn.onclick = () => {
                 if (sequentialMode && window.__seqStep !== null) {
-                    // Разрешаем клик только на текущей кнопке
-                    if (window.__seqStep !== i) return;
+                    // Проверяем, можно ли кликнуть на эту точку в текущем порядке
+                    if (hasCustomOrder) {
+                        // В кастомном порядке проверяем по orderIndex
+                        if (window.__seqStep !== orderIndex) return;
+                    } else {
+                        // В стандартном порядке проверяем по pointIndex
+                        if (isOuter) {
+                            if (window.__seqStep !== pointIndex) return;
+                        } else {
+                            if (window.__seqStep !== (pointIndex)) return;
+                        }
+                    }
                 }
-                promptWordForSlot(i, 'outer', vertices);
+                promptWordForSlot(slotIndex, isOuter ? 'outer' : 'inner', vertices);
             };
-            slot.appendChild(btn);
-            slotsLayer.appendChild(slot);
-        }
-        for (let i = 0; i < 5; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'dnd-slot';
-            slot.dataset.index = String(i);
-            slot.dataset.type = 'inner';
-            const pos = approxInner[i];
-            slot.style.left = pos.left;
-            slot.style.top = pos.top;
-            const btn = document.createElement('button');
-            btn.className = 'slot-btn';
-            // Показываем номер для не-универсальных шифров, иначе символ
-            const displayText = showNumbers ? (i + 1) : pairSymbols[i % pairSymbols.length];
-            btn.textContent = displayText;
-            btn.style.color = innerColors[i % innerColors.length];
-            btn.setAttribute('aria-label', `Внутренняя вершина ${i+1}`);
-            btn.onclick = () => {
-                if (sequentialMode && window.__seqStep !== null) {
-                    // Внутренние начинаются с шага 5
-                    if (window.__seqStep !== (i + 5)) return;
-                }
-                promptWordForSlot(i, 'inner', vertices);
-            };
+            
             slot.appendChild(btn);
             slotsLayer.appendChild(slot);
         }
@@ -682,6 +696,10 @@ function initTreasureMapWithDnD() {
     window.updateSequentialVisibility = function() {
         const step = window.__seqStep;
         if (step === null || step === undefined) return;
+        
+        const pointOrder = appConfig.point_order || [];
+        const hasCustomOrder = pointOrder.length === 10;
+        
         // Скрываем все, но сохраняем видимыми уже решённые
         const allSlots = Array.from(document.querySelectorAll('.dnd-slot'));
         allSlots.forEach(s => {
@@ -695,7 +713,18 @@ function initTreasureMapWithDnD() {
                 s.style.visibility = 'hidden';
             }
         });
-        // Показываем только текущий
+        
+        // Показываем только текущий слот
+        if (hasCustomOrder) {
+            // В кастомном порядке ищем слот по orderIndex
+            const curr = document.querySelector(`.dnd-slot[data-order-index="${step}"]`);
+            if (curr) {
+                curr.style.visibility = 'visible';
+                const btn = curr.querySelector('button');
+                if (btn) btn.disabled = false;
+            }
+        } else {
+            // Стандартный порядок
         if (step < 5) {
             const sel = `.dnd-slot[data-index="${step}"][data-type="outer"]`;
             const curr = document.querySelector(sel);
@@ -712,6 +741,7 @@ function initTreasureMapWithDnD() {
                 curr.style.visibility = 'visible';
                 const btn = curr.querySelector('button');
                 if (btn) btn.disabled = false;
+                }
             }
         }
     }
@@ -721,16 +751,28 @@ function initTreasureMapWithDnD() {
         if (step === null || step === undefined) return;
         const mapCoords = document.getElementById('map-coordinates');
         if (!mapCoords) return;
-        // Определим lat/lng текущей точки (учитываем dnd_points или вычисление по углам)
-        const isOuter = step < 5;
-        const idx = isOuter ? step : (step - 5);
+        
+        const pointOrder = appConfig.point_order || [];
+        const hasCustomOrder = pointOrder.length === 10;
+        
+        let pointIndex;
+        if (hasCustomOrder) {
+            // В кастомном порядке берем точку по индексу в порядке
+            pointIndex = pointOrder[step];
+        } else {
+            // Стандартный порядок
+            pointIndex = step;
+        }
+        
+        const isOuter = pointIndex < 5;
+        const idx = isOuter ? pointIndex : (pointIndex - 5);
         const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
         const baseRadius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
         const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
         const dnd = (appConfig.pentagram && Array.isArray(appConfig.pentagram.dnd_points) && appConfig.pentagram.dnd_points.length >= 10) ? appConfig.pentagram.dnd_points : null;
         let lat, lng;
         if (dnd) {
-            const p = isOuter ? dnd[idx] : dnd[idx + 5];
+            const p = dnd[pointIndex];
             lat = p.lat; lng = p.lng;
         } else {
             const defaultAngles = [-90, -18, 54, 126, 198];
@@ -778,7 +820,22 @@ function initTreasureMapWithDnD() {
 }
 
 function promptWordForSlot(idx, type, vertices) {
-    const v = vertices[idx];
+    // Получаем настроенный порядок точек
+    const pointOrder = appConfig.point_order || [];
+    const hasCustomOrder = pointOrder.length === 10;
+    
+    let actualVertexIndex;
+    if (hasCustomOrder) {
+        // В кастомном порядке нужно найти, какая вершина соответствует текущему слоту
+        const currentStep = window.__seqStep || 0;
+        const pointIndex = pointOrder[currentStep];
+        actualVertexIndex = (type === 'outer') ? pointIndex : (pointIndex - 5);
+    } else {
+        // Стандартный порядок
+        actualVertexIndex = idx;
+    }
+    
+    const v = vertices[actualVertexIndex];
     const expected = (type === 'outer') ? (v.words[0] || '') : (v.words[1] || '');
     const val = window.prompt('Введи слово для вершины:');
     if (!val) return;
@@ -792,6 +849,18 @@ function promptWordForSlot(idx, type, vertices) {
         placeVertexAndConnect(idx, vertices, type);
         // Если активен последовательный режим — открываем следующую точку
         if (window.__seqStep !== null && window.__seqStep !== undefined) {
+            const pointOrder = appConfig.point_order || [];
+            const hasCustomOrder = pointOrder.length === 10;
+            
+            if (hasCustomOrder) {
+                // В кастомном порядке проверяем, что это текущая точка в порядке
+                const currentPointInOrder = pointOrder[window.__seqStep];
+                const currentPointIndex = (type === 'outer') ? idx : (idx + 5);
+                if (currentPointIndex === currentPointInOrder) {
+                    window.__seqStep = window.__seqStep + 1; // следующий шаг
+                }
+            } else {
+                // Стандартный порядок
             if (type === 'outer') {
                 // ожидаем idx == __seqStep (0..4)
                 if (window.__seqStep === idx) {
@@ -801,6 +870,7 @@ function promptWordForSlot(idx, type, vertices) {
                 // внутренние: шаги 5..9
                 if (window.__seqStep === (idx + 5)) {
                     window.__seqStep = window.__seqStep + 1;
+                    }
                 }
             }
             if (window.__seqStep <= 9) {
@@ -847,17 +917,34 @@ function placeVertexAndConnect(idx, vertices, type) {
     const baseRadius = (appConfig.pentagram && appConfig.pentagram.radius_m) ? appConfig.pentagram.radius_m : 150;
     const innerFactor = (appConfig.pentagram && appConfig.pentagram.inner_radius_factor) ? appConfig.pentagram.inner_radius_factor : 0.38;
     const dnd = (appConfig.pentagram && Array.isArray(appConfig.pentagram.dnd_points) && appConfig.pentagram.dnd_points.length >= 10) ? appConfig.pentagram.dnd_points : null;
-    const v = vertices[idx];
+    
+    // Получаем настроенный порядок точек
+    const pointOrder = appConfig.point_order || [];
+    const hasCustomOrder = pointOrder.length === 10;
+    
+    let actualVertexIndex;
+    if (hasCustomOrder) {
+        // В кастомном порядке нужно найти, какая вершина соответствует текущему слоту
+        const currentStep = window.__seqStep || 0;
+        const pointIndex = pointOrder[currentStep];
+        actualVertexIndex = (type === 'outer') ? pointIndex : (pointIndex - 5);
+    } else {
+        // Стандартный порядок
+        actualVertexIndex = idx;
+    }
+    
+    const v = vertices[actualVertexIndex];
     const isOuter = (type === 'outer');
     const useRadius = isOuter ? baseRadius : Math.max(10, Math.floor(baseRadius * innerFactor));
     const defaultAngles = [-90, -18, 54, 126, 198];
     const useDefault = (!vertices || vertices.length < 5) || vertices.every(x => !x || x.angle_deg === undefined || Number(x.angle_deg) === 0);
     let latlng;
     if (dnd) {
-        const p = isOuter ? dnd[idx] : dnd[idx + 5];
+        const pointIndex = hasCustomOrder ? pointOrder[window.__seqStep || 0] : ((type === 'outer') ? idx : (idx + 5));
+        const p = dnd[pointIndex];
         latlng = L.latLng(p.lat, p.lng);
     } else {
-        const baseAngle = useDefault ? defaultAngles[idx] : (v.angle_deg || 0);
+        const baseAngle = useDefault ? defaultAngles[actualVertexIndex] : (v.angle_deg || 0);
         const angle = baseAngle + (isOuter ? 0 : 36);
         const pt = offsetLatLng(center, useRadius, angle);
         latlng = L.latLng(pt[0], pt[1]);
@@ -1112,6 +1199,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (editor) {
         initPentagramEditor();
     }
+
+    // Инициализация настройки порядка точек в админке
+    const orderSection = document.getElementById('btn-set-order');
+    if (orderSection) {
+        // Ждем, пока DOM полностью загрузится
+        setTimeout(() => {
+            initPointOrderManager();
+        }, 100);
+    }
     // После /cipher показываем золотую дымку, затем нормальный поток
     const mainContainer = document.getElementById('main-container');
     if (mainContainer) {
@@ -1225,8 +1321,33 @@ function initPentagramEditor() {
                 points.push({ lat: parseFloat(latField.value), lng: parseFloat(lngField.value) });
             }
         }
+        
+        // Получаем настроенный порядок точек
+        const pointOrder = appConfig.point_order || [];
+        const hasCustomOrder = pointOrder.length === 10;
+        
+        if (hasCustomOrder) {
+            // Используем кастомный порядок
+            pointOrder.forEach((pointIndex, orderIndex) => {
+                if (points[pointIndex]) {
+                    const p = points[pointIndex];
+                    const isOuter = pointIndex < 5;
+                    const color = isOuter ? '#ff2b2b' : '#111';
+                    const number = orderIndex + 1; // Номер в порядке прохождения
+                    const marker = L.marker(p, { draggable: true, icon: makeDotIcon(color, number) });
+                    marker.addTo(map);
+                    if (isOuter) {
+                        outerMarkers.push(marker);
+                    } else {
+                        innerMarkers.push(marker);
+                    }
+                }
+            });
+        } else {
+            // Стандартный порядок
         points.slice(0,5).forEach((p, i) => outerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#ff2b2b', i+1) }).addTo(map)));
         points.slice(5,10).forEach((p, i) => innerMarkers.push(L.marker(p, { draggable: true, icon: makeDotIcon('#111', i+1) }).addTo(map)));
+        }
     };
     if (btnCalc) btnCalc.onclick = () => {
         // Рассчитать точки по текущим углам/радиусу/центру
@@ -1249,11 +1370,39 @@ function initPentagramEditor() {
         };
         // Очистим существующие
         btnClear.click();
+        
+        // Получаем настроенный порядок точек
+        const pointOrder = appConfig.point_order || [];
+        const hasCustomOrder = pointOrder.length === 10;
+        
+        if (hasCustomOrder) {
+            // Используем кастомный порядок
+            pointOrder.forEach((pointIndex, orderIndex) => {
+                const isOuter = pointIndex < 5;
+                const idx = isOuter ? pointIndex : (pointIndex - 5);
+                const v = vertices[idx];
+                const ang = (v && typeof v.angle_deg === 'number') ? v.angle_deg : defaultAngles[idx];
+                const useRadius = isOuter ? radius : Math.max(10, Math.floor(radius * innerFactor));
+                const angle = isOuter ? ang : (ang + 36);
+                const marker = L.marker(toLatLng(angle, useRadius), { 
+                    draggable: true, 
+                    icon: makeDotIcon(isOuter ? '#ff2b2b' : '#111', orderIndex + 1) 
+                });
+                marker.addTo(map);
+                if (isOuter) {
+                    outerMarkers.push(marker);
+                } else {
+                    innerMarkers.push(marker);
+                }
+            });
+        } else {
+            // Стандартный порядок
         for (let i = 0; i < 5; i++) {
             const v = vertices[i];
             const ang = (v && typeof v.angle_deg === 'number') ? v.angle_deg : defaultAngles[i];
             outerMarkers.push(L.marker(toLatLng(ang, radius), { draggable: true, icon: makeDotIcon('#ff2b2b', i+1) }).addTo(map));
             innerMarkers.push(L.marker(toLatLng(ang + 36, radius * innerFactor), { draggable: true, icon: makeDotIcon('#111', i+1) }).addTo(map));
+            }
         }
     };
     if (btnApply) btnApply.onclick = () => {
@@ -1295,6 +1444,353 @@ function initPentagramEditor() {
             if (innerMarkers.length < 5) addMarker(e.latlng, 'inner');
         }
     });
+}
+
+// --- Point Order Manager (admin) ---
+function initPointOrderManager() {
+    let orderMode = false;
+    let currentOrder = [];
+    let orderMarkers = [];
+    let orderMap = null;
+    
+    const btnSetOrder = document.getElementById('btn-set-order');
+    const btnResetOrder = document.getElementById('btn-reset-order');
+    const btnClearOrder = document.getElementById('btn-clear-order');
+    const orderStatus = document.getElementById('order-status');
+    
+    // Загружаем текущий порядок
+    loadCurrentOrder();
+    
+    if (btnSetOrder) {
+        btnSetOrder.onclick = () => {
+            if (orderMode) {
+                // Завершаем настройку
+                finishOrderSetting();
+            } else {
+                // Начинаем настройку
+                startOrderSetting();
+            }
+        };
+    }
+    
+    if (btnResetOrder) {
+        btnResetOrder.onclick = () => {
+            resetToDefaultOrder();
+        };
+    }
+    
+    if (btnClearOrder) {
+        btnClearOrder.onclick = () => {
+            clearOrder();
+        };
+    }
+    
+    function loadCurrentOrder() {
+        fetch('/api/admin/point-order')
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok) {
+                    currentOrder = data.order || [];
+                    updateOrderStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Error loading order:', error);
+            });
+    }
+    
+    function startOrderSetting() {
+        orderMode = true;
+        currentOrder = [];
+        orderMarkers = [];
+        
+        // Создаем карту для настройки порядка
+        createOrderMap();
+        
+        btnSetOrder.textContent = 'Завершить настройку';
+        btnSetOrder.style.background = 'rgba(255, 0, 0, 0.6)';
+        orderStatus.textContent = 'Кликните по точкам на карте в нужной последовательности (1-10)...';
+        orderStatus.style.color = '#ff6b6b';
+    }
+    
+    function createOrderMap() {
+        // Очищаем существующую карту если есть
+        if (orderMap) {
+            orderMap.remove();
+            orderMap = null;
+        }
+        
+        // Ищем контейнер
+        let orderMapContainer = document.getElementById('order-map');
+        
+        // Если контейнер не найден, создаем его динамически
+        if (!orderMapContainer) {
+            orderMapContainer = document.createElement('div');
+            orderMapContainer.id = 'order-map';
+            orderMapContainer.style.cssText = 'height: 400px; border: 2px solid #8B7355; margin-top: 20px; display: block;';
+            
+            // Находим секцию с настройкой порядка и добавляем карту
+            const orderSection = Array.from(document.querySelectorAll('h2.section-title')).find(h => 
+                h.textContent.includes('🎯 Порядок прохождения точек')
+            );
+            
+            if (orderSection) {
+                const formSection = orderSection.closest('.form-section');
+                if (formSection) {
+                    formSection.appendChild(orderMapContainer);
+                }
+            } else {
+                // Fallback: ищем по кнопке
+                const btnSetOrder = document.getElementById('btn-set-order');
+                if (btnSetOrder) {
+                    const parentSection = btnSetOrder.closest('.form-section');
+                    if (parentSection) {
+                        parentSection.appendChild(orderMapContainer);
+                    }
+                }
+            }
+        }
+        
+        orderMapContainer.style.display = 'block';
+        
+        // Ждем, пока контейнер станет видимым, затем создаем карту
+        setTimeout(() => {
+            const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+            orderMap = L.map('order-map', {
+                center,
+                zoom: 15,
+                zoomControl: true,
+                attributionControl: false
+            });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(orderMap);
+            
+            // Показываем все 10 точек на карте
+            showAllPointsOnMap();
+            
+            // Обработчик кликов
+            setupOrderMapClickHandler();
+        }, 200);
+    }
+    
+    function setupOrderMapClickHandler() {
+        if (!orderMap) return;
+        
+        // Обработчик кликов - отключаем стандартное поведение карты
+        orderMap.off('click'); // Убираем все предыдущие обработчики
+        orderMap.on('click', (e) => {
+            if (!orderMode) return;
+            
+            // Предотвращаем изменение центра карты
+            e.originalEvent.stopPropagation();
+            
+            const clickedPoint = findNearestPoint(e.latlng);
+            if (clickedPoint !== null && !currentOrder.includes(clickedPoint)) {
+                currentOrder.push(clickedPoint);
+                addOrderMarker(clickedPoint, currentOrder.length);
+                updateOrderStatus();
+                
+                if (currentOrder.length === 10) {
+                    finishOrderSetting();
+                }
+            }
+        });
+    }
+    
+    function showAllPointsOnMap() {
+        const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+        const pgConfig = appConfig.pentagram || {};
+        const dnd = pgConfig.dnd_points;
+        const radius = pgConfig.radius_m || 150;
+        const innerFactor = pgConfig.inner_radius_factor || 0.38;
+        
+        // Показываем все 10 точек
+        for (let i = 0; i < 10; i++) {
+            let latlng;
+            if (dnd && dnd.length >= 10) {
+                const p = dnd[i];
+                latlng = L.latLng(p.lat, p.lng);
+            } else {
+                // Вычисляем по углам
+                const isOuter = i < 5;
+                const idx = isOuter ? i : (i - 5);
+                const defaultAngles = [-90, -18, 54, 126, 198];
+                const baseAngle = defaultAngles[idx];
+                const angle = baseAngle + (isOuter ? 0 : 36);
+                const useRadius = isOuter ? radius : Math.max(10, Math.floor(radius * innerFactor));
+                const pt = offsetLatLng(center, useRadius, angle);
+                latlng = L.latLng(pt[0], pt[1]);
+            }
+            
+            const color = i < 5 ? '#ff2b2b' : '#111111';
+            const marker = L.circleMarker(latlng, {
+                radius: 12,
+                color: '#000000',
+                fillColor: color,
+                fillOpacity: 0.8,
+                weight: 3
+            }).addTo(orderMap);
+            
+            // Добавляем номер точки
+            const label = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'point-label',
+                    html: `<div style="background: rgba(255,255,255,0.9); color: #000; border: 1px solid #000; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">${i + 1}</div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).addTo(orderMap);
+            
+            // Сохраняем индекс точки в маркере
+            marker.pointIndex = i;
+            label.pointIndex = i;
+        }
+    }
+    
+    function findNearestPoint(clickedLatLng) {
+        if (!orderMap) return null;
+        
+        let nearestIndex = null;
+        let minDistance = Infinity;
+        
+        // Ищем среди всех маркеров на карте
+        orderMap.eachLayer(function(layer) {
+            if (layer.pointIndex !== undefined) {
+                const distance = clickedLatLng.distanceTo(layer.getLatLng());
+                if (distance < minDistance && distance < 100) { // 100 метров радиус
+                    minDistance = distance;
+                    nearestIndex = layer.pointIndex;
+                }
+            }
+        });
+        
+        return nearestIndex;
+    }
+    
+    function addOrderMarker(pointIndex, orderNumber) {
+        const center = [appConfig.coordinates.lat, appConfig.coordinates.lng];
+        const pgConfig = appConfig.pentagram || {};
+        const dnd = pgConfig.dnd_points;
+        const radius = pgConfig.radius_m || 150;
+        const innerFactor = pgConfig.inner_radius_factor || 0.38;
+        
+        let latlng;
+        if (dnd && dnd.length >= 10) {
+            const p = dnd[pointIndex];
+            latlng = L.latLng(p.lat, p.lng);
+        } else {
+            const isOuter = pointIndex < 5;
+            const idx = isOuter ? pointIndex : (pointIndex - 5);
+            const defaultAngles = [-90, -18, 54, 126, 198];
+            const baseAngle = defaultAngles[idx];
+            const angle = baseAngle + (isOuter ? 0 : 36);
+            const useRadius = isOuter ? radius : Math.max(10, Math.floor(radius * innerFactor));
+            const pt = offsetLatLng(center, useRadius, angle);
+            latlng = L.latLng(pt[0], pt[1]);
+        }
+        
+        const marker = L.marker(latlng, {
+            icon: L.divIcon({
+                className: 'order-marker',
+                html: `<div style="background: #FFD700; color: #000; border: 2px solid #000; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">${orderNumber}</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(orderMap);
+        
+        orderMarkers.push(marker);
+    }
+    
+    function finishOrderSetting() {
+        if (currentOrder.length !== 10) {
+            alert('Необходимо выбрать все 10 точек!');
+            return;
+        }
+        
+        // Сохраняем порядок
+        saveOrder(currentOrder);
+        
+        orderMode = false;
+        btnSetOrder.textContent = 'Назначить порядок';
+        btnSetOrder.style.background = '';
+        orderStatus.textContent = `Порядок установлен: ${currentOrder.join(', ')}`;
+        orderStatus.style.color = '#4CAF50';
+        
+        // Очищаем карту и скрываем её
+        if (orderMap) {
+            orderMap.remove();
+            orderMap = null;
+        }
+        orderMarkers = [];
+        
+        // Скрываем карту
+        const orderMapContainer = document.getElementById('order-map');
+        if (orderMapContainer) {
+            orderMapContainer.style.display = 'none';
+        }
+    }
+    
+    function saveOrder(order) {
+        fetch('/api/admin/point-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ order: order })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                currentOrder = data.order;
+                updateOrderStatus();
+            } else {
+                alert('Ошибка сохранения порядка: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving order:', error);
+            alert('Ошибка сохранения порядка');
+        });
+    }
+    
+    function resetToDefaultOrder() {
+        const defaultOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // Стандартный порядок
+        saveOrder(defaultOrder);
+    }
+    
+    function clearOrder() {
+        saveOrder([]);
+        
+        // Очищаем карту и скрываем её
+        if (orderMap) {
+            orderMap.remove();
+            orderMap = null;
+        }
+        orderMarkers = [];
+        
+        // Скрываем карту
+        const orderMapContainer = document.getElementById('order-map');
+        if (orderMapContainer) {
+            orderMapContainer.style.display = 'none';
+        }
+        
+        // Сбрасываем режим
+        orderMode = false;
+        btnSetOrder.textContent = 'Назначить порядок';
+        btnSetOrder.style.background = '';
+    }
+    
+    function updateOrderStatus() {
+        if (currentOrder.length === 0) {
+            orderStatus.textContent = 'Порядок не настроен. Игроки будут проходить точки в стандартном порядке.';
+            orderStatus.style.color = '#8B7355';
+        } else if (currentOrder.length === 10) {
+            orderStatus.textContent = `Порядок установлен: ${currentOrder.join(', ')}`;
+            orderStatus.style.color = '#4CAF50';
+        } else {
+            orderStatus.textContent = `Настроено ${currentOrder.length}/10 точек: ${currentOrder.join(', ')}`;
+            orderStatus.style.color = '#ff6b6b';
+        }
+    }
 }
 
 

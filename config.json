@@ -106,5 +106,17 @@
         "photo_caption": "храм там где он",
         "final_message": "иди и получи то что ты заслуживаешь"
     },
-    "universal_cipher": "12345678"
+    "universal_cipher": "12345678",
+    "point_order": [
+        0,
+        3,
+        6,
+        4,
+        5,
+        8,
+        2,
+        7,
+        9,
+        1
+    ]
 }

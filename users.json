@@ -9,12 +9,20 @@
         "email": "kostenkov.va@dvfu.ru",
         "login": "dubsaider",
         "cipher": "9Y27CR4X",
-        "created_at": "2025-10-17T07:36:14.759188Z"
+        "created_at": "2025-10-17T07:36:14.759188Z",
+        "progress_step": 1
     },
     {
         "email": "1@33",
         "login": "123123",
         "cipher": "11J1GPJR",
         "created_at": "2025-10-17T07:40:39.775615Z"
+    },
+    {
+        "email": "1@13",
+        "login": "asdgfsad",
+        "cipher": "EGYKMRDK",
+        "created_at": "2025-10-17T11:40:37.434266Z",
+        "progress_step": 1
     }
 ]
