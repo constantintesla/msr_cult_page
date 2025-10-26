@@ -578,6 +578,7 @@ function initTreasureMapWithDnD() {
                     console.error('Error loading progress', e);
                 }
             }
+            // Для универсального шифра тоже используем кастомный порядок, но без последовательного режима
             createSlotsWithNumbers(showNumbers, sequentialMode, initialStep);
         })
         .catch((error) => {
@@ -601,6 +602,7 @@ function initTreasureMapWithDnD() {
                 window.__seqStep = 0;
             }
         } else {
+            // Для не-последовательного режима (универсальный шифр) тоже нужно учитывать кастомный порядок
             window.__seqStep = null;
         }
         
@@ -827,16 +829,67 @@ function promptWordForSlot(idx, type, vertices) {
     let actualVertexIndex;
     if (hasCustomOrder) {
         // В кастомном порядке нужно найти, какая вершина соответствует текущему слоту
-        const currentStep = window.__seqStep || 0;
-        const pointIndex = pointOrder[currentStep];
-        actualVertexIndex = (type === 'outer') ? pointIndex : (pointIndex - 5);
+        if (window.__seqStep !== null) {
+            // Последовательный режим - используем текущий шаг
+            const currentStep = window.__seqStep || 0;
+            const pointIndex = pointOrder[currentStep];
+            actualVertexIndex = (pointIndex < 5) ? pointIndex : (pointIndex - 5);
+        } else {
+            // Не-последовательный режим (универсальный шифр) - используем orderIndex из слота
+            const slot = document.querySelector(`.dnd-slot[data-index="${idx}"][data-type="${type}"]`);
+            const orderIndex = slot ? parseInt(slot.dataset.orderIndex) || 0 : 0;
+            const pointIndex = pointOrder[orderIndex];
+            // pointIndex - это индекс точки в общем списке (0-9), нужно преобразовать в индекс вершины
+            actualVertexIndex = (pointIndex < 5) ? pointIndex : (pointIndex - 5);
+        }
     } else {
         // Стандартный порядок
         actualVertexIndex = idx;
     }
     
     const v = vertices[actualVertexIndex];
-    const expected = (type === 'outer') ? (v.words[0] || '') : (v.words[1] || '');
+    if (!v || !v.words) {
+        console.error('Vertex not found or missing words:', { actualVertexIndex, v, vertices });
+        alert('Ошибка: вершина не найдена');
+        return;
+    }
+    
+    // Для кастомного порядка слова привязаны к orderIndex, а не к точкам
+    let expected;
+    if (hasCustomOrder) {
+        // Получаем orderIndex для текущей точки
+        let currentOrderIndex;
+        if (window.__seqStep !== null) {
+            // Последовательный режим
+            currentOrderIndex = window.__seqStep || 0;
+        } else {
+            // Не-последовательный режим (универсальный шифр)
+            const slot = document.querySelector(`.dnd-slot[data-index="${idx}"][data-type="${type}"]`);
+            currentOrderIndex = slot ? parseInt(slot.dataset.orderIndex) || 0 : 0;
+        }
+        
+        // Собираем все слова из vertices в один массив в правильном порядке
+        const allWords = [];
+        vertices.forEach(v => {
+            if (v && v.words) {
+                allWords.push(v.words[0] || ''); // внешнее слово
+                allWords.push(v.words[1] || ''); // внутреннее слово
+            }
+        });
+        
+        // Используем orderIndex для получения правильного слова
+        expected = allWords[currentOrderIndex] || '';
+    } else {
+        // Стандартный порядок - используем вершину и тип слота
+        const wordIndex = (type === 'outer') ? 0 : 1;
+        expected = (v.words[wordIndex] || '');
+    }
+    console.log('Debug:', { 
+        actualVertexIndex, 
+        expected, 
+        type,
+        hasCustomOrder 
+    });
     const val = window.prompt('Введи слово для вершины:');
     if (!val) return;
     if (val.trim().toLowerCase() === expected.toLowerCase()) {
@@ -925,15 +978,30 @@ function placeVertexAndConnect(idx, vertices, type) {
     let actualVertexIndex;
     if (hasCustomOrder) {
         // В кастомном порядке нужно найти, какая вершина соответствует текущему слоту
-        const currentStep = window.__seqStep || 0;
-        const pointIndex = pointOrder[currentStep];
-        actualVertexIndex = (type === 'outer') ? pointIndex : (pointIndex - 5);
+        if (window.__seqStep !== null) {
+            // Последовательный режим - используем текущий шаг
+            const currentStep = window.__seqStep || 0;
+            const pointIndex = pointOrder[currentStep];
+            actualVertexIndex = (pointIndex < 5) ? pointIndex : (pointIndex - 5);
+        } else {
+            // Не-последовательный режим (универсальный шифр) - используем orderIndex из слота
+            const slot = document.querySelector(`.dnd-slot[data-index="${idx}"][data-type="${type}"]`);
+            const orderIndex = slot ? parseInt(slot.dataset.orderIndex) || 0 : 0;
+            const pointIndex = pointOrder[orderIndex];
+            // pointIndex - это индекс точки в общем списке (0-9), нужно преобразовать в индекс вершины
+            actualVertexIndex = (pointIndex < 5) ? pointIndex : (pointIndex - 5);
+        }
     } else {
         // Стандартный порядок
         actualVertexIndex = idx;
     }
     
     const v = vertices[actualVertexIndex];
+    if (!v) {
+        console.error('Vertex not found:', { actualVertexIndex, vertices });
+        return;
+    }
+    
     const isOuter = (type === 'outer');
     const useRadius = isOuter ? baseRadius : Math.max(10, Math.floor(baseRadius * innerFactor));
     const defaultAngles = [-90, -18, 54, 126, 198];
